@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -17,7 +16,17 @@ export default function AuthPage() {
     // Simulate API call
     setTimeout(() => {
       setIsLoading(false);
-      setLocation("/");
+      setLocation("/dashboard");
+    }, 1500);
+  };
+
+  const handleRegister = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    // Simulate API call
+    setTimeout(() => {
+      setIsLoading(false);
+      setLocation("/dashboard");
     }, 1500);
   };
 
@@ -107,7 +116,7 @@ export default function AuthPage() {
             </TabsContent>
             
             <TabsContent value="register">
-              <form className="space-y-4">
+              <form onSubmit={handleRegister} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="first-name">First name</Label>
@@ -128,7 +137,7 @@ export default function AuthPage() {
                 </div>
                 
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  Create Account <ArrowRight className="w-4 h-4 ml-2" />
+                  {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <>Create Account <ArrowRight className="w-4 h-4 ml-2" /></>}
                 </Button>
               </form>
             </TabsContent>
