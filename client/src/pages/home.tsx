@@ -3,11 +3,13 @@ import { MaterialScanner } from "@/components/material-scanner";
 import { CarbonStats } from "@/components/carbon-stats";
 import { AlternativesGrid } from "@/components/alternatives";
 import heroImage from "@assets/generated_images/hero_image_for_sustainable_construction_app.png";
+import avatarImage from "@assets/generated_images/professional_architect_portrait.png";
 import { motion } from "framer-motion";
-import { Sprout, Building2, BarChart3, Menu, Search, Scan, Leaf } from "lucide-react";
+import { Sprout, Building2, BarChart3, Menu, Scan, Leaf } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Link } from "wouter";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 export default function Home() {
   const [hasScanned, setHasScanned] = useState(false);
@@ -17,29 +19,30 @@ export default function Home() {
       {/* Navigation */}
       <nav className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="bg-primary text-white p-1.5 rounded-lg">
-              <Sprout className="w-6 h-6" />
+          <Link href="/">
+            <div className="flex items-center gap-2 cursor-pointer">
+              <div className="bg-primary text-white p-1.5 rounded-lg">
+                <Sprout className="w-6 h-6" />
+              </div>
+              <span className="font-display font-bold text-xl tracking-tight">EcoBuild<span className="text-primary">.AI</span></span>
             </div>
-            <span className="font-display font-bold text-xl tracking-tight">EcoBuild<span className="text-primary">.AI</span></span>
-          </div>
+          </Link>
           
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
-            <a href="#" className="text-foreground hover:text-primary transition-colors">Dashboard</a>
-            <a href="#" className="hover:text-primary transition-colors">Materials Library</a>
-            <a href="#" className="hover:text-primary transition-colors">Projects</a>
-            <a href="#" className="hover:text-primary transition-colors">Reports</a>
+            <Link href="/" className="text-foreground hover:text-primary transition-colors">Dashboard</Link>
+            <Link href="/materials" className="hover:text-primary transition-colors">Materials Library</Link>
+            <Link href="/projects" className="hover:text-primary transition-colors">Projects</Link>
+            <Link href="/reports" className="hover:text-primary transition-colors">Reports</Link>
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="hidden md:flex relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input type="search" placeholder="Search materials..." className="pl-9 w-64 h-9 bg-secondary/50 border-none" />
-            </div>
+            <Avatar className="h-8 w-8 border border-primary/20">
+              <AvatarImage src={avatarImage} alt="Architect User" />
+              <AvatarFallback>AU</AvatarFallback>
+            </Avatar>
             <Button size="icon" variant="ghost" className="md:hidden">
               <Menu className="w-5 h-5" />
             </Button>
-            <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/30" />
           </div>
         </div>
       </nav>
@@ -75,7 +78,7 @@ export default function Home() {
           </section>
         )}
 
-        <div className={`container mx-auto px-4 ${hasScanned ? 'pt-8' : '-mt-24'} relative z-20 pb-20`}>
+        <div className={`container mx-auto px-4 ${hasScanned ? 'pt-8' : ''} relative z-20 pb-20`}>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             
             {/* Left Column: Scanner & Info */}
