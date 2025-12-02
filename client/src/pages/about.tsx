@@ -108,7 +108,7 @@ export default function About() {
             <div className="container mx-auto px-4 max-w-2xl">
                 <h2 className="text-3xl font-display font-bold mb-6">Ready to build the future?</h2>
                 <p className="text-slate-300 mb-8 text-lg">Join the community of forward-thinking professionals using EcoBuild.AI today.</p>
-                <Link href="/auth">
+                <Link href="/dashboard">
                     <Button size="lg" className="px-8">Get Started for Free</Button>
                 </Link>
             </div>

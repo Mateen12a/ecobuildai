@@ -57,10 +57,10 @@ export default function Landing() {
           </div>
 
           <div className="flex items-center gap-4">
-            <Link href="/auth">
+            <Link href="/dashboard">
                 <Button variant="ghost" className="hidden md:flex">Sign In</Button>
             </Link>
-            <Link href="/auth">
+            <Link href="/dashboard">
                 <Button>Get Started <ArrowRight className="ml-2 w-4 h-4" /></Button>
             </Link>
             <Button size="icon" variant="ghost" className="md:hidden">
@@ -267,7 +267,7 @@ export default function Landing() {
             </DialogHeader>
             <DialogFooter className="flex-col sm:flex-row gap-2">
                 <Button variant="outline" onClick={() => setShowLoginPrompt(false)}>Cancel</Button>
-                <Link href="/auth">
+                <Link href="/dashboard">
                     <Button className="w-full sm:w-auto">Sign Up Free</Button>
                 </Link>
             </DialogFooter>
