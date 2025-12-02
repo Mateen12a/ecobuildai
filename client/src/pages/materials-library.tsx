@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Filter, Leaf, AlertTriangle } from "lucide-react";
+import { Search, Filter, Leaf, AlertTriangle, ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
 import { useState } from "react";
 
@@ -29,12 +29,14 @@ export default function MaterialsLibrary() {
       <div className="container mx-auto px-4 pt-8">
         <div className="flex items-center justify-between mb-8">
           <div>
+            <Link href="/">
+              <Button variant="ghost" className="mb-2 pl-0 hover:pl-2 transition-all text-muted-foreground">
+                <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
+              </Button>
+            </Link>
             <h1 className="text-3xl font-display font-bold">Materials Library</h1>
             <p className="text-muted-foreground">Database of 2,400+ construction materials and their environmental impact.</p>
           </div>
-          <Link href="/">
-            <Button variant="outline">Back to Dashboard</Button>
-          </Link>
         </div>
 
         <div className="flex gap-4 mb-8">
@@ -47,41 +49,43 @@ export default function MaterialsLibrary() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Button variant="outline">
+          <Button variant="outline" className="active:scale-95 transition-transform">
             <Filter className="w-4 h-4 mr-2" /> Filters
           </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredMaterials.map((material) => (
-            <Card key={material.id} className="overflow-hidden hover:shadow-lg transition-shadow duration-300 border-none shadow-md">
-              <div className="h-48 overflow-hidden relative">
-                <img src={material.image} alt={material.name} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
-                <div className="absolute top-3 right-3">
-                  <Badge className={`${material.impactColor} border-none`}>
-                    {material.impact === 'High' ? <AlertTriangle className="w-3 h-3 mr-1" /> : <Leaf className="w-3 h-3 mr-1" />}
-                    {material.impact} Impact
-                  </Badge>
-                </div>
-              </div>
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{material.category}</span>
-                    <CardTitle className="text-xl">{material.name}</CardTitle>
+            <Link key={material.id} href={`/materials/${material.id}`}>
+              <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 border-none shadow-md cursor-pointer group hover:-translate-y-1">
+                <div className="h-48 overflow-hidden relative">
+                  <img src={material.image} alt={material.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                  <div className="absolute top-3 right-3">
+                    <Badge className={`${material.impactColor} border-none`}>
+                      {material.impact === 'High' ? <AlertTriangle className="w-3 h-3 mr-1" /> : <Leaf className="w-3 h-3 mr-1" />}
+                      {material.impact} Impact
+                    </Badge>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Embodied Carbon:</span>
-                  <span className="font-mono font-medium">{material.carbon} CO2e/m³</span>
-                </div>
-              </CardContent>
-              <CardFooter className="bg-secondary/20 pt-4">
-                <Button variant="ghost" className="w-full text-primary hover:text-primary hover:bg-primary/10">View Details</Button>
-              </CardFooter>
-            </Card>
+                <CardHeader className="pb-2">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{material.category}</span>
+                      <CardTitle className="text-xl group-hover:text-primary transition-colors">{material.name}</CardTitle>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Embodied Carbon:</span>
+                    <span className="font-mono font-medium">{material.carbon} CO2e/m³</span>
+                  </div>
+                </CardContent>
+                <CardFooter className="bg-secondary/20 pt-4 group-hover:bg-secondary/40 transition-colors">
+                  <Button variant="ghost" className="w-full text-primary hover:text-primary/80">View Details</Button>
+                </CardFooter>
+              </Card>
+            </Link>
           ))}
         </div>
       </div>

@@ -5,14 +5,23 @@ import { AlternativesGrid } from "@/components/alternatives";
 import heroImage from "@assets/generated_images/hero_image_for_sustainable_construction_app.png";
 import avatarImage from "@assets/generated_images/professional_architect_portrait.png";
 import { motion } from "framer-motion";
-import { Sprout, Building2, BarChart3, Menu, Scan, Leaf } from "lucide-react";
+import { Sprout, Building2, BarChart3, Menu, Scan, Leaf, LogOut, Settings, User, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function Home() {
   const [hasScanned, setHasScanned] = useState(false);
+  const [_, setLocation] = useLocation();
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
@@ -20,8 +29,8 @@ export default function Home() {
       <nav className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/">
-            <div className="flex items-center gap-2 cursor-pointer">
-              <div className="bg-primary text-white p-1.5 rounded-lg">
+            <div className="flex items-center gap-2 cursor-pointer group">
+              <div className="bg-primary text-white p-1.5 rounded-lg group-hover:scale-110 transition-transform">
                 <Sprout className="w-6 h-6" />
               </div>
               <span className="font-display font-bold text-xl tracking-tight">EcoBuild<span className="text-primary">.AI</span></span>
@@ -36,10 +45,31 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-4">
-            <Avatar className="h-8 w-8 border border-primary/20">
-              <AvatarImage src={avatarImage} alt="Architect User" />
-              <AvatarFallback>AU</AvatarFallback>
-            </Avatar>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Avatar className="h-8 w-8 border border-primary/20 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all">
+                  <AvatarImage src={avatarImage} alt="Architect User" />
+                  <AvatarFallback>AU</AvatarFallback>
+                </Avatar>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="cursor-pointer">
+                  <User className="mr-2 h-4 w-4" /> Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer">
+                  <CreditCard className="mr-2 h-4 w-4" /> Subscription
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer">
+                  <Settings className="mr-2 h-4 w-4" /> Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="cursor-pointer text-red-500 focus:text-red-500" onClick={() => setLocation("/auth")}>
+                  <LogOut className="mr-2 h-4 w-4" /> Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button size="icon" variant="ghost" className="md:hidden">
               <Menu className="w-5 h-5" />
             </Button>
@@ -135,7 +165,7 @@ export default function Home() {
                     { icon: BarChart3, title: "Carbon Analytics", desc: "Real-time footprint calculation and lifecycle analysis." },
                     { icon: Leaf, title: "Eco Alternatives", desc: "Get AI-recommended sustainable substitutes." }
                   ].map((feature, i) => (
-                    <Card key={i} className="bg-white/80 backdrop-blur border-none shadow-lg">
+                    <Card key={i} className="bg-white/80 backdrop-blur border-none shadow-lg hover:shadow-xl transition-shadow cursor-pointer active:scale-95 duration-200">
                       <CardContent className="pt-6">
                         <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4 text-primary">
                           <feature.icon className="w-5 h-5" />

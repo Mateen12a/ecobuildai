@@ -1,8 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area } from 'recharts';
-import { Download, FileText, Share2 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { Download, FileText, Share2, ArrowLeft, Eye } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 
 const monthlyData = [
   { name: 'Jan', carbon: 4000, saved: 2400 },
@@ -14,19 +16,40 @@ const monthlyData = [
 ];
 
 export default function Reports() {
+  const { toast } = useToast();
+
+  const handleShare = () => {
+    toast({
+      title: "Report Shared",
+      description: "A secure link has been copied to your clipboard.",
+    });
+  };
+
+  const handleExport = () => {
+    toast({
+      title: "Exporting PDF",
+      description: "Your report is being generated and will download shortly.",
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20">
       <div className="container mx-auto px-4 pt-8">
         <div className="flex items-center justify-between mb-8">
           <div>
+            <Link href="/">
+              <Button variant="ghost" className="mb-2 pl-0 hover:pl-2 transition-all text-muted-foreground">
+                <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
+              </Button>
+            </Link>
             <h1 className="text-3xl font-display font-bold">Sustainability Reports</h1>
             <p className="text-muted-foreground">Analysis of carbon footprint reduction and material efficiency.</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline">
+            <Button variant="outline" onClick={handleShare} className="active:scale-95 transition-transform">
               <Share2 className="w-4 h-4 mr-2" /> Share
             </Button>
-            <Button>
+            <Button onClick={handleExport} className="active:scale-95 transition-transform">
               <Download className="w-4 h-4 mr-2" /> Export PDF
             </Button>
           </div>
@@ -84,17 +107,37 @@ export default function Reports() {
         <h2 className="text-xl font-display font-bold mb-4">Recent Generated Reports</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
-            <Card key={i} className="hover:bg-secondary/20 transition-colors cursor-pointer border-none shadow-sm">
-              <CardContent className="p-6 flex items-center gap-4">
-                <div className="p-3 bg-primary/10 rounded-lg text-primary">
-                  <FileText className="w-6 h-6" />
+            <Dialog key={i}>
+              <DialogTrigger asChild>
+                <Card className="hover:bg-secondary/20 transition-all cursor-pointer border-none shadow-sm group active:scale-[0.98]">
+                  <CardContent className="p-6 flex items-center gap-4 relative overflow-hidden">
+                    <div className="p-3 bg-primary/10 rounded-lg text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                      <FileText className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold">Q{i} 2025 Sustainability Audit</h3>
+                      <p className="text-sm text-muted-foreground">Generated on Dec {i + 10}, 2025</p>
+                    </div>
+                    <div className="absolute right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Eye className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                  <DialogTitle>Q{i} 2025 Sustainability Audit Report</DialogTitle>
+                  <DialogDescription>Full breakdown of environmental impact metrics.</DialogDescription>
+                </DialogHeader>
+                <div className="h-[400px] w-full bg-secondary/10 rounded-lg flex flex-col items-center justify-center border-2 border-dashed border-muted">
+                  <FileText className="w-16 h-16 text-muted-foreground mb-4 opacity-50" />
+                  <p className="text-muted-foreground">Preview of Report Document Content</p>
+                  <Button variant="outline" className="mt-4" onClick={handleExport}>
+                    <Download className="w-4 h-4 mr-2" /> Download Full PDF
+                  </Button>
                 </div>
-                <div>
-                  <h3 className="font-bold">Q{i} 2025 Sustainability Audit</h3>
-                  <p className="text-sm text-muted-foreground">Generated on Dec {i + 10}, 2025</p>
-                </div>
-              </CardContent>
-            </Card>
+              </DialogContent>
+            </Dialog>
           ))}
         </div>
       </div>
