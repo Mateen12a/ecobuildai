@@ -17,6 +17,17 @@ import Subscription from "@/pages/subscription";
 import Settings from "@/pages/settings";
 import About from "@/pages/about";
 
+// New Pages
+import Privacy from "@/pages/legal/privacy";
+import Terms from "@/pages/legal/terms";
+import Cookies from "@/pages/legal/cookies";
+import Contact from "@/pages/contact";
+import CaseStudies from "@/pages/case-studies";
+import ApiDocs from "@/pages/api-docs";
+import Pricing from "@/pages/pricing";
+import Features from "@/pages/features";
+
+
 function Router() {
   return (
     <Switch>
@@ -32,6 +43,17 @@ function Router() {
       <Route path="/subscription" component={Subscription} />
       <Route path="/settings" component={Settings} />
       <Route path="/about" component={About} />
+      
+      {/* New Routes */}
+      <Route path="/privacy" component={Privacy} />
+      <Route path="/terms" component={Terms} />
+      <Route path="/cookies" component={Cookies} />
+      <Route path="/contact" component={Contact} />
+      <Route path="/case-studies" component={CaseStudies} />
+      <Route path="/api" component={ApiDocs} />
+      <Route path="/pricing" component={Pricing} />
+      <Route path="/features" component={Features} />
+
       <Route component={NotFound} />
     </Switch>
   );

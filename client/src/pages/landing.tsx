@@ -4,7 +4,7 @@ import { CarbonStats } from "@/components/carbon-stats";
 import { AlternativesGrid } from "@/components/alternatives";
 import heroImage from "@assets/generated_images/hero_image_for_sustainable_construction_app.png";
 import { motion } from "framer-motion";
-import { Sprout, Building2, BarChart3, Menu, Scan, Leaf, LogIn, ArrowRight } from "lucide-react";
+import { Sprout, Building2, BarChart3, Menu, Scan, Leaf, LogIn, ArrowRight, Quote, Star, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link, useLocation } from "wouter";
@@ -16,6 +16,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 export default function Landing() {
   const [hasScanned, setHasScanned] = useState(false);
@@ -36,6 +37,27 @@ export default function Landing() {
     }
   };
 
+  const testimonials = [
+    {
+        name: "Sarah Chen",
+        role: "Lead Architect, BuildGreen",
+        text: "EcoBuild.AI has completely transformed our material selection process. We've reduced our projects' embodied carbon by 30% on average.",
+        avatar: "SC"
+    },
+    {
+        name: "Marcus Thorne",
+        role: "Structural Engineer",
+        text: "The accuracy of the material recognition is impressive. It saves us hours of manual documentation during site audits.",
+        avatar: "MT"
+    },
+    {
+        name: "Elena Rodriguez",
+        role: "Sustainability Consultant",
+        text: "Finally, a tool that makes lifecycle assessment accessible. The alternative recommendations are always practical and structurally sound.",
+        avatar: "ER"
+    }
+  ];
+
   return (
     <div className="min-h-screen bg-background text-foreground font-sans flex flex-col">
       {/* Navigation */}
@@ -52,8 +74,8 @@ export default function Landing() {
           
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
             <Link href="/about" className="hover:text-primary transition-colors">About</Link>
-            <a href="#features" className="hover:text-primary transition-colors">Features</a>
-            <a href="#pricing" className="hover:text-primary transition-colors">Pricing</a>
+            <Link href="/features" className="hover:text-primary transition-colors">Features</Link>
+            <Link href="/pricing" className="hover:text-primary transition-colors">Pricing</Link>
           </div>
 
           <div className="flex items-center gap-4">
@@ -176,37 +198,81 @@ export default function Landing() {
 
          {/* Features Section (only if not scanned to keep clean) */}
          {!hasScanned && (
-            <section id="features" className="bg-secondary/20 py-24">
-                <div className="container mx-auto px-4">
-                    <div className="text-center mb-16">
-                        <h2 className="text-3xl font-display font-bold mb-4">Why Choose EcoBuild.AI?</h2>
-                        <p className="text-muted-foreground max-w-2xl mx-auto">Comprehensive tools for the modern sustainable architect.</p>
+            <>
+                <section id="features" className="bg-secondary/20 py-24">
+                    <div className="container mx-auto px-4">
+                        <div className="text-center mb-16">
+                            <h2 className="text-3xl font-display font-bold mb-4">Why Choose EcoBuild.AI?</h2>
+                            <p className="text-muted-foreground max-w-2xl mx-auto">Comprehensive tools for the modern sustainable architect.</p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            {[
+                                { icon: Scan, title: "Instant Recognition", desc: "Identify materials in seconds with 99% accuracy using our proprietary computer vision models." },
+                                { icon: BarChart3, title: "Carbon Analytics", desc: "Real-time footprint calculation and lifecycle analysis to ensure compliance with green building standards." },
+                                { icon: Leaf, title: "Eco Alternatives", desc: "Get AI-recommended sustainable substitutes that match structural requirements but lower carbon impact." }
+                            ].map((feature, i) => (
+                                <Card key={i} className="bg-background border-none shadow-lg hover:-translate-y-2 transition-transform duration-300">
+                                    <CardContent className="pt-8 text-center">
+                                        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 text-primary mx-auto">
+                                            <feature.icon className="w-8 h-8" />
+                                        </div>
+                                        <h3 className="font-bold font-display text-xl mb-4">{feature.title}</h3>
+                                        <p className="text-muted-foreground leading-relaxed">{feature.desc}</p>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        {[
-                            { icon: Scan, title: "Instant Recognition", desc: "Identify materials in seconds with 99% accuracy using our proprietary computer vision models." },
-                            { icon: BarChart3, title: "Carbon Analytics", desc: "Real-time footprint calculation and lifecycle analysis to ensure compliance with green building standards." },
-                            { icon: Leaf, title: "Eco Alternatives", desc: "Get AI-recommended sustainable substitutes that match structural requirements but lower carbon impact." }
-                        ].map((feature, i) => (
-                            <Card key={i} className="bg-background border-none shadow-lg hover:-translate-y-2 transition-transform duration-300">
-                                <CardContent className="pt-8 text-center">
-                                    <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 text-primary mx-auto">
-                                        <feature.icon className="w-8 h-8" />
-                                    </div>
-                                    <h3 className="font-bold font-display text-xl mb-4">{feature.title}</h3>
-                                    <p className="text-muted-foreground leading-relaxed">{feature.desc}</p>
-                                </CardContent>
-                            </Card>
-                        ))}
+                </section>
+
+                {/* Trusted By */}
+                <section className="py-16">
+                    <div className="container mx-auto px-4 text-center">
+                        <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest mb-8">Trusted by forward-thinking teams at</p>
+                        <div className="flex flex-wrap justify-center gap-12 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
+                            {/* Placeholder Logos using text for now */}
+                            <div className="text-2xl font-bold font-display">ARCH<span className="text-primary">STUDIO</span></div>
+                            <div className="text-2xl font-bold font-display">BUILD<span className="text-primary">WORKS</span></div>
+                            <div className="text-2xl font-bold font-display">GREEN<span className="text-primary">PLAN</span></div>
+                            <div className="text-2xl font-bold font-display">URBAN<span className="text-primary">LAB</span></div>
+                        </div>
                     </div>
-                </div>
-            </section>
+                </section>
+
+                {/* Testimonials */}
+                <section className="py-24 bg-slate-900 text-white">
+                    <div className="container mx-auto px-4">
+                        <div className="text-center mb-16">
+                            <h2 className="text-3xl font-display font-bold mb-4">What Architects Are Saying</h2>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            {testimonials.map((t, i) => (
+                                <Card key={i} className="bg-white/5 border-white/10 text-white">
+                                    <CardContent className="pt-8">
+                                        <Quote className="w-8 h-8 text-primary mb-4 opacity-50" />
+                                        <p className="text-lg leading-relaxed mb-6 text-white/90">"{t.text}"</p>
+                                        <div className="flex items-center gap-4">
+                                            <Avatar>
+                                                <AvatarFallback className="text-black font-bold bg-white">{t.avatar}</AvatarFallback>
+                                            </Avatar>
+                                            <div>
+                                                <p className="font-bold">{t.name}</p>
+                                                <p className="text-sm text-white/60">{t.role}</p>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+            </>
          )}
 
       </main>
 
       {/* Footer */}
-      <footer className="bg-slate-900 text-white py-12 border-t border-white/10">
+      <footer className="bg-slate-950 text-white py-12 border-t border-white/10">
         <div className="container mx-auto px-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
                 <div className="space-y-4">
@@ -224,10 +290,10 @@ export default function Landing() {
                 <div>
                     <h4 className="font-bold mb-4">Product</h4>
                     <ul className="space-y-2 text-sm text-slate-400">
-                        <li><a href="#" className="hover:text-primary transition-colors">Features</a></li>
-                        <li><a href="#" className="hover:text-primary transition-colors">Pricing</a></li>
-                        <li><a href="#" className="hover:text-primary transition-colors">API</a></li>
-                        <li><a href="#" className="hover:text-primary transition-colors">Case Studies</a></li>
+                        <li><Link href="/features" className="hover:text-primary transition-colors">Features</Link></li>
+                        <li><Link href="/pricing" className="hover:text-primary transition-colors">Pricing</Link></li>
+                        <li><Link href="/api" className="hover:text-primary transition-colors">API</Link></li>
+                        <li><Link href="/case-studies" className="hover:text-primary transition-colors">Case Studies</Link></li>
                     </ul>
                 </div>
 
@@ -237,16 +303,16 @@ export default function Landing() {
                         <li><Link href="/about" className="hover:text-primary transition-colors">About Us</Link></li>
                         <li><a href="#" className="hover:text-primary transition-colors">Careers</a></li>
                         <li><a href="#" className="hover:text-primary transition-colors">Blog</a></li>
-                        <li><a href="#" className="hover:text-primary transition-colors">Contact</a></li>
+                        <li><Link href="/contact" className="hover:text-primary transition-colors">Contact</Link></li>
                     </ul>
                 </div>
 
                 <div>
                     <h4 className="font-bold mb-4">Legal</h4>
                     <ul className="space-y-2 text-sm text-slate-400">
-                        <li><a href="#" className="hover:text-primary transition-colors">Privacy Policy</a></li>
-                        <li><a href="#" className="hover:text-primary transition-colors">Terms of Service</a></li>
-                        <li><a href="#" className="hover:text-primary transition-colors">Cookie Policy</a></li>
+                        <li><Link href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link></li>
+                        <li><Link href="/terms" className="hover:text-primary transition-colors">Terms of Service</Link></li>
+                        <li><Link href="/cookies" className="hover:text-primary transition-colors">Cookie Policy</Link></li>
                     </ul>
                 </div>
             </div>

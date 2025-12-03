@@ -2,13 +2,14 @@ import { useState } from "react";
 import { MaterialScanner } from "@/components/material-scanner";
 import { CarbonStats } from "@/components/carbon-stats";
 import { AlternativesGrid } from "@/components/alternatives";
-import { motion } from "framer-motion";
-import { Sprout, Building2, BarChart3, Menu, Scan, Leaf, LogOut, Settings, User, CreditCard, LayoutDashboard, FolderOpen, FileText, Search, X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Sprout, Building2, BarChart3, Menu, Scan, Leaf, LogOut, Settings, User, CreditCard, LayoutDashboard, FolderOpen, FileText, Search, Box, Layers, Cuboid } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link, useLocation } from "wouter";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,9 +24,10 @@ import {
   SheetTrigger,
   SheetHeader,
   SheetTitle,
-  SheetClose
 } from "@/components/ui/sheet";
 import avatarImage from "@assets/generated_images/professional_architect_portrait.png";
+import wireframeImage from "@assets/generated_images/wireframe_schematic_of_concrete_block.png";
+import render3dImage from "@assets/generated_images/3d_structural_analysis_of_concrete.png";
 
 export default function Home() {
   const [hasScanned, setHasScanned] = useState(false);
@@ -255,6 +257,57 @@ export default function Home() {
                 animate={{ opacity: 1 }}
                 className="space-y-8"
               >
+                <Card className="border-none shadow-md overflow-hidden">
+                  <CardHeader className="bg-secondary/5 border-b border-border/50 pb-4">
+                    <CardTitle className="flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-primary" /> Analysis Visualization
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <Tabs defaultValue="wireframe" className="w-full">
+                      <div className="p-4 bg-secondary/5 border-b border-border/50">
+                        <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
+                          <TabsTrigger value="wireframe" className="flex items-center gap-2">
+                            <Box className="w-4 h-4" /> Wireframe
+                          </TabsTrigger>
+                          <TabsTrigger value="3d" className="flex items-center gap-2">
+                            <Cuboid className="w-4 h-4" /> 3D Structure
+                          </TabsTrigger>
+                        </TabsList>
+                      </div>
+                      <div className="relative aspect-video bg-slate-950 flex items-center justify-center overflow-hidden">
+                        <TabsContent value="wireframe" className="mt-0 w-full h-full">
+                          <motion.img 
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            src={wireframeImage} 
+                            alt="Wireframe View" 
+                            className="w-full h-full object-cover opacity-80"
+                          />
+                          <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,_transparent_0%,_rgba(0,0,0,0.8)_100%)]" />
+                          <div className="absolute bottom-4 left-4 text-cyan-400 font-mono text-xs">
+                            <p>GRID_SIZE: 10mm</p>
+                            <p>VECTOR_COUNT: 1402</p>
+                          </div>
+                        </TabsContent>
+                        <TabsContent value="3d" className="mt-0 w-full h-full">
+                          <motion.img 
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            src={render3dImage} 
+                            alt="3D View" 
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute bottom-4 left-4 text-orange-400 font-mono text-xs">
+                            <p>DENSITY_MAP: ACTIVE</p>
+                            <p>THERMAL_LAYER: VISIBLE</p>
+                          </div>
+                        </TabsContent>
+                      </div>
+                    </Tabs>
+                  </CardContent>
+                </Card>
+
                 <div className="hover:scale-[1.005] transition-transform duration-300">
                    <CarbonStats />
                 </div>
