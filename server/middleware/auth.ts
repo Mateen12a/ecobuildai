@@ -57,6 +57,33 @@ export async function authMiddleware(
   }
 }
 
+export async function optionalAuthMiddleware(
+  req: AuthRequest, 
+  res: Response, 
+  next: NextFunction
+): Promise<void> {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const decoded = verifyToken(token);
+      
+      if (decoded) {
+        const user = await User.findById(decoded.userId).select('-password');
+        if (user) {
+          req.user = user;
+          req.userId = decoded.userId;
+        }
+      }
+    }
+    
+    next();
+  } catch (error) {
+    next();
+  }
+}
+
 export function optionalAuth(
   req: AuthRequest, 
   res: Response, 

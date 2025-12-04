@@ -25,6 +25,7 @@ import CaseStudies from "@/pages/case-studies";
 import ApiDocs from "@/pages/api-docs";
 import Pricing from "@/pages/pricing";
 import Features from "@/pages/features";
+import ScanHistory from "@/pages/scan-history";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, loading } = useAuth();
@@ -71,6 +72,9 @@ function Router() {
       </Route>
       <Route path="/settings">
         <ProtectedRoute component={Settings} />
+      </Route>
+      <Route path="/history">
+        <ProtectedRoute component={ScanHistory} />
       </Route>
       <Route path="/about" component={About} />
       <Route path="/privacy" component={Privacy} />

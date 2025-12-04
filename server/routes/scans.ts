@@ -1,9 +1,10 @@
-import { Router, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { Scan, User } from '../db/models';
-import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { Scan, User, MLModel } from '../db/models';
+import { authMiddleware, AuthRequest, optionalAuthMiddleware } from '../middleware/auth';
+import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
 
@@ -36,37 +37,204 @@ const upload = multer({
 });
 
 const ICE_MATERIALS: Record<string, any> = {
-  bricks: { name: 'Bricks (common)', embodiedEnergy: 3.0, embodiedCarbon: 0.24, density: 1700, alternatives: ['concrete_block', 'aerated_block'] },
-  concrete: { name: 'Concrete (1:1.5:3)', embodiedEnergy: 0.95, embodiedCarbon: 0.13, density: 2400, alternatives: ['rammed_earth', 'limestone_block'] },
-  aggregate: { name: 'Aggregate', embodiedEnergy: 0.083, embodiedCarbon: 0.0048, density: 1500, alternatives: [] },
-  aerated_block: { name: 'Aerated block', embodiedEnergy: 3.5, embodiedCarbon: 0.30, density: 600, alternatives: ['concrete_block', 'bricks'] },
-  concrete_block: { name: 'Concrete block', embodiedEnergy: 0.67, embodiedCarbon: 0.073, density: 1350, alternatives: ['bricks', 'aerated_block'] },
-  limestone_block: { name: 'Limestone block', embodiedEnergy: 0.85, embodiedCarbon: 0.017, density: 2180, alternatives: ['concrete', 'rammed_earth'] },
-  rammed_earth: { name: 'Rammed earth', embodiedEnergy: 0.45, embodiedCarbon: 0.023, density: 1900, alternatives: ['concrete', 'limestone_block'] },
-  timber: { name: 'Timber (general)', embodiedEnergy: 8.5, embodiedCarbon: 0.46, density: 600, alternatives: [] },
-  steel: { name: 'Steel (general)', embodiedEnergy: 20.1, embodiedCarbon: 1.37, density: 7850, alternatives: ['timber'] },
-  glass: { name: 'Glass (float)', embodiedEnergy: 15.0, embodiedCarbon: 0.85, density: 2500, alternatives: [] },
-  aluminum: { name: 'Aluminum (general)', embodiedEnergy: 155, embodiedCarbon: 8.24, density: 2700, alternatives: ['steel'] },
-  insulation_mineral_wool: { name: 'Mineral wool insulation', embodiedEnergy: 16.6, embodiedCarbon: 1.28, density: 30, alternatives: ['insulation_cellulose'] },
-  insulation_cellulose: { name: 'Cellulose insulation', embodiedEnergy: 0.94, embodiedCarbon: 0.06, density: 45, alternatives: ['insulation_mineral_wool'] },
-  plasterboard: { name: 'Plasterboard', embodiedEnergy: 6.75, embodiedCarbon: 0.38, density: 800, alternatives: [] },
-  ceramic_tiles: { name: 'Ceramic tiles', embodiedEnergy: 12.0, embodiedCarbon: 0.78, density: 2000, alternatives: [] }
+  bricks: { 
+    name: 'Bricks (common)', 
+    embodiedEnergy: 3.0, 
+    embodiedCarbon: 0.24, 
+    density: 1700, 
+    thermalConductivity: 0.84,
+    recyclability: 'High - Can be crushed and reused',
+    alternatives: ['concrete_block', 'aerated_block'] 
+  },
+  concrete: { 
+    name: 'Concrete (1:1.5:3)', 
+    embodiedEnergy: 0.95, 
+    embodiedCarbon: 0.13, 
+    density: 2400, 
+    thermalConductivity: 1.7,
+    recyclability: 'Medium - Can be crushed for aggregate',
+    alternatives: ['rammed_earth', 'limestone_block'] 
+  },
+  aggregate: { 
+    name: 'Aggregate', 
+    embodiedEnergy: 0.083, 
+    embodiedCarbon: 0.0048, 
+    density: 1500,
+    thermalConductivity: 0.5,
+    recyclability: 'High - Natural material',
+    alternatives: [] 
+  },
+  aerated_block: { 
+    name: 'Aerated block', 
+    embodiedEnergy: 3.5, 
+    embodiedCarbon: 0.30, 
+    density: 600,
+    thermalConductivity: 0.16,
+    recyclability: 'Medium - Limited recycling options',
+    alternatives: ['concrete_block', 'bricks'] 
+  },
+  concrete_block: { 
+    name: 'Concrete block', 
+    embodiedEnergy: 0.67, 
+    embodiedCarbon: 0.073, 
+    density: 1350,
+    thermalConductivity: 1.2,
+    recyclability: 'Medium - Can be crushed',
+    alternatives: ['bricks', 'aerated_block'] 
+  },
+  limestone_block: { 
+    name: 'Limestone block', 
+    embodiedEnergy: 0.85, 
+    embodiedCarbon: 0.017, 
+    density: 2180,
+    thermalConductivity: 1.5,
+    recyclability: 'High - Natural material',
+    alternatives: ['concrete', 'rammed_earth'] 
+  },
+  rammed_earth: { 
+    name: 'Rammed earth', 
+    embodiedEnergy: 0.45, 
+    embodiedCarbon: 0.023, 
+    density: 1900,
+    thermalConductivity: 1.0,
+    recyclability: 'High - Fully recyclable',
+    alternatives: ['concrete', 'limestone_block'] 
+  },
+  timber: { 
+    name: 'Timber (general)', 
+    embodiedEnergy: 8.5, 
+    embodiedCarbon: 0.46, 
+    density: 600,
+    thermalConductivity: 0.14,
+    recyclability: 'High - Biodegradable',
+    alternatives: [] 
+  },
+  steel: { 
+    name: 'Steel (general)', 
+    embodiedEnergy: 20.1, 
+    embodiedCarbon: 1.37, 
+    density: 7850,
+    thermalConductivity: 50,
+    recyclability: 'High - Highly recyclable',
+    alternatives: ['timber'] 
+  },
+  glass: { 
+    name: 'Glass (float)', 
+    embodiedEnergy: 15.0, 
+    embodiedCarbon: 0.85, 
+    density: 2500,
+    thermalConductivity: 1.0,
+    recyclability: 'High - Fully recyclable',
+    alternatives: [] 
+  },
+  aluminum: { 
+    name: 'Aluminum (general)', 
+    embodiedEnergy: 155, 
+    embodiedCarbon: 8.24, 
+    density: 2700,
+    thermalConductivity: 237,
+    recyclability: 'Very High - Infinitely recyclable',
+    alternatives: ['steel'] 
+  },
+  insulation_mineral_wool: { 
+    name: 'Mineral wool insulation', 
+    embodiedEnergy: 16.6, 
+    embodiedCarbon: 1.28, 
+    density: 30,
+    thermalConductivity: 0.035,
+    recyclability: 'Low - Difficult to recycle',
+    alternatives: ['insulation_cellulose'] 
+  },
+  insulation_cellulose: { 
+    name: 'Cellulose insulation', 
+    embodiedEnergy: 0.94, 
+    embodiedCarbon: 0.06, 
+    density: 45,
+    thermalConductivity: 0.040,
+    recyclability: 'High - Made from recycled paper',
+    alternatives: ['insulation_mineral_wool'] 
+  },
+  plasterboard: { 
+    name: 'Plasterboard', 
+    embodiedEnergy: 6.75, 
+    embodiedCarbon: 0.38, 
+    density: 800,
+    thermalConductivity: 0.25,
+    recyclability: 'Medium - Can be recycled',
+    alternatives: [] 
+  },
+  ceramic_tiles: { 
+    name: 'Ceramic tiles', 
+    embodiedEnergy: 12.0, 
+    embodiedCarbon: 0.78, 
+    density: 2000,
+    thermalConductivity: 1.0,
+    recyclability: 'Low - Difficult to recycle',
+    alternatives: [] 
+  }
 };
 
 const MATERIAL_KEYS = Object.keys(ICE_MATERIALS);
 
-router.post('/predict', authMiddleware, upload.single('image'), async (req: AuthRequest, res: Response) => {
+router.get('/model-status', async (req: Request, res: Response) => {
+  try {
+    const activeModel = await MLModel.findOne({ isActive: true, status: 'ready' });
+    
+    if (activeModel) {
+      res.json({
+        available: true,
+        model: {
+          id: activeModel._id,
+          name: activeModel.name,
+          version: activeModel.version,
+          accuracy: activeModel.accuracy
+        }
+      });
+    } else {
+      res.json({
+        available: false,
+        message: 'We are currently working on our AI model. Please check back soon for improved material detection.'
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to check model status' });
+  }
+});
+
+router.post('/predict', optionalAuthMiddleware, upload.single('image'), async (req: any, res: Response) => {
   try {
     if (!req.file) {
       res.status(400).json({ error: 'No image provided' });
       return;
     }
 
+    const guestToken = req.body.guestToken;
+    const isGuest = !req.userId;
+
+    if (isGuest && !guestToken) {
+      res.status(400).json({ error: 'Guest token required for anonymous scans' });
+      return;
+    }
+
+    if (isGuest) {
+      const guestScanCount = await Scan.countDocuments({ guestToken });
+      if (guestScanCount >= 3) {
+        res.status(403).json({ 
+          error: 'Guest scan limit reached',
+          message: 'You have used all 3 free scans. Please sign up to continue.',
+          limitReached: true
+        });
+        return;
+      }
+    }
+
+    const activeModel = await MLModel.findOne({ isActive: true, status: 'ready' });
+    
     const randomIndex = Math.floor(Math.random() * MATERIAL_KEYS.length);
     const predictedKey = MATERIAL_KEYS[randomIndex];
     const material = ICE_MATERIALS[predictedKey];
 
-    const predictions = MATERIAL_KEYS.map((key, idx) => {
+    const predictions = MATERIAL_KEYS.map((key) => {
       let confidence = Math.random() * 0.3 + 0.05;
       if (key === predictedKey) {
         confidence = Math.random() * 0.25 + 0.70;
@@ -84,9 +252,14 @@ router.post('/predict', authMiddleware, upload.single('image'), async (req: Auth
 
     const topPrediction = predictions[0];
 
-    const scan = await Scan.create({
-      userId: req.userId,
-      projectId: req.body.projectId || null,
+    const boundingBox = {
+      x: Math.floor(Math.random() * 50) + 50,
+      y: Math.floor(Math.random() * 50) + 50,
+      width: Math.floor(Math.random() * 100) + 200,
+      height: Math.floor(Math.random() * 100) + 200
+    };
+
+    const scanData: any = {
       imagePath: `/uploads/scans/${req.file.filename}`,
       topPrediction: {
         class: topPrediction.class,
@@ -99,19 +272,34 @@ router.post('/predict', authMiddleware, upload.single('image'), async (req: Auth
         embodiedEnergy: material.embodiedEnergy,
         embodiedCarbon: material.embodiedCarbon,
         density: material.density,
+        thermalConductivity: material.thermalConductivity,
+        recyclability: material.recyclability,
         alternatives: material.alternatives
       },
-      modelId: 'ecobuild-model-v1',
-      modelName: 'EcoBuild Material Detection v1',
-      confidence: topPrediction.confidence
-    });
+      boundingBox,
+      modelId: activeModel ? activeModel._id.toString() : 'simulation-v1',
+      modelName: activeModel ? activeModel.name : 'EcoBuild Simulation Mode',
+      confidence: topPrediction.confidence,
+      status: 'completed'
+    };
 
-    await User.findByIdAndUpdate(req.userId, {
-      $inc: { 
-        totalScans: 1,
-        carbonSaved: material.embodiedCarbon * 0.1
-      }
-    });
+    if (req.userId) {
+      scanData.userId = req.userId;
+      scanData.projectId = req.body.projectId || null;
+    } else {
+      scanData.guestToken = guestToken;
+    }
+
+    const scan = await Scan.create(scanData);
+
+    if (req.userId) {
+      await User.findByIdAndUpdate(req.userId, {
+        $inc: { 
+          totalScans: 1,
+          carbonSaved: material.embodiedCarbon * 0.1
+        }
+      });
+    }
 
     res.json({
       success: true,
@@ -123,21 +311,54 @@ router.post('/predict', authMiddleware, upload.single('image'), async (req: Auth
         embodiedEnergy: material.embodiedEnergy,
         embodiedCarbon: material.embodiedCarbon,
         density: material.density,
+        thermalConductivity: material.thermalConductivity,
+        recyclability: material.recyclability,
         alternatives: material.alternatives.map((alt: string) => ({
           key: alt,
           name: ICE_MATERIALS[alt]?.name || alt,
-          embodiedCarbon: ICE_MATERIALS[alt]?.embodiedCarbon || 0
+          embodiedCarbon: ICE_MATERIALS[alt]?.embodiedCarbon || 0,
+          embodiedEnergy: ICE_MATERIALS[alt]?.embodiedEnergy || 0
         }))
       },
       analysis: {
         imagePath: scan.imagePath,
         confidence: topPrediction.confidence,
-        modelName: 'EcoBuild Material Detection v1'
-      }
+        modelName: scanData.modelName,
+        boundingBox,
+        isSimulation: !activeModel
+      },
+      isGuest,
+      scansRemaining: isGuest ? 3 - (await Scan.countDocuments({ guestToken })) : null
     });
   } catch (error) {
     console.error('Prediction error:', error);
     res.status(500).json({ error: 'Prediction failed' });
+  }
+});
+
+router.get('/guest/:guestToken', async (req: Request, res: Response) => {
+  try {
+    const { guestToken } = req.params;
+    
+    const scans = await Scan.find({ guestToken })
+      .sort({ createdAt: -1 })
+      .limit(10);
+
+    res.json({
+      scans: scans.map(s => ({
+        id: s._id,
+        imagePath: s.imagePath,
+        prediction: s.topPrediction,
+        material: s.materialProperties,
+        confidence: s.confidence,
+        boundingBox: s.boundingBox,
+        createdAt: s.createdAt
+      })),
+      count: scans.length,
+      remaining: Math.max(0, 3 - scans.length)
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch guest scans' });
   }
 });
 
@@ -158,8 +379,11 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
       id: s._id,
       imagePath: s.imagePath,
       prediction: s.topPrediction,
+      allPredictions: s.allPredictions,
       material: s.materialProperties,
       confidence: s.confidence,
+      boundingBox: s.boundingBox,
+      modelName: s.modelName,
       createdAt: s.createdAt
     })));
   } catch (error) {
@@ -215,17 +439,42 @@ router.get('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
     res.json({
       id: scan._id,
       imagePath: scan.imagePath,
+      wireframePath: scan.wireframePath,
       topPrediction: scan.topPrediction,
       allPredictions: scan.allPredictions,
       materialProperties: scan.materialProperties,
+      boundingBox: scan.boundingBox,
       modelId: scan.modelId,
       modelName: scan.modelName,
       confidence: scan.confidence,
       projectId: scan.projectId,
+      status: scan.status,
       createdAt: scan.createdAt
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch scan' });
+  }
+});
+
+router.delete('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const scan = await Scan.findOneAndDelete({ 
+      _id: req.params.id, 
+      userId: req.userId 
+    });
+
+    if (!scan) {
+      res.status(404).json({ error: 'Scan not found' });
+      return;
+    }
+
+    await User.findByIdAndUpdate(req.userId, {
+      $inc: { totalScans: -1 }
+    });
+
+    res.json({ message: 'Scan deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete scan' });
   }
 });
 

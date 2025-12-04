@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sprout, Building2, BarChart3, Menu, Scan, Leaf, LogOut, Settings, User, CreditCard, LayoutDashboard, FolderOpen, FileText, Search, Box, Layers, Cuboid, Upload, Loader2, AlertTriangle } from "lucide-react";
+import { Sprout, Building2, BarChart3, Menu, Scan, Leaf, LogOut, Settings, User, CreditCard, LayoutDashboard, FolderOpen, FileText, Search, Box, Layers, Cuboid, Upload, Loader2, AlertTriangle, Clock, Cpu, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link, useLocation } from "wouter";
@@ -46,6 +46,7 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [stats, setStats] = useState({ totalScans: 0, carbonSaved: 0, activeProjects: 0 });
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [modelStatus, setModelStatus] = useState<{ available: boolean; message?: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user, logout } = useAuth();
   const [_, setLocation] = useLocation();
@@ -53,7 +54,17 @@ export default function Home() {
 
   useEffect(() => {
     loadStats();
+    checkModelStatus();
   }, []);
+
+  const checkModelStatus = async () => {
+    try {
+      const status = await api.getModelStatus();
+      setModelStatus(status);
+    } catch (error) {
+      setModelStatus({ available: false, message: 'Unable to connect to ML service' });
+    }
+  };
 
   const loadStats = async () => {
     try {
@@ -148,6 +159,9 @@ export default function Home() {
             <Link href="/reports" className="hover:text-primary transition-colors flex items-center gap-2">
               <FileText className="w-4 h-4" /> Reports
             </Link>
+            <Link href="/history" className="hover:text-primary transition-colors flex items-center gap-2">
+              <Clock className="w-4 h-4" /> History
+            </Link>
           </div>
 
           <div className="flex items-center gap-4">
@@ -199,6 +213,7 @@ export default function Home() {
                   <Link href="/materials"><Button variant="ghost" className="w-full justify-start text-lg font-medium"><Search className="mr-3 w-5 h-5" /> Materials Library</Button></Link>
                   <Link href="/projects"><Button variant="ghost" className="w-full justify-start text-lg font-medium"><FolderOpen className="mr-3 w-5 h-5" /> Projects</Button></Link>
                   <Link href="/reports"><Button variant="ghost" className="w-full justify-start text-lg font-medium"><FileText className="mr-3 w-5 h-5" /> Reports</Button></Link>
+                  <Link href="/history"><Button variant="ghost" className="w-full justify-start text-lg font-medium"><Clock className="mr-3 w-5 h-5" /> Scan History</Button></Link>
                   <div className="border-t pt-4 mt-4">
                     <Button variant="ghost" className="w-full justify-start text-lg font-medium text-destructive hover:text-destructive" onClick={handleLogout}>
                       <LogOut className="mr-3 w-5 h-5" /> Log out
@@ -239,10 +254,22 @@ export default function Home() {
           <div className="lg:col-span-4 space-y-6">
             <Card className="border-2 border-dashed border-muted-foreground/20 bg-secondary/30">
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2">
-                  <Scan className="w-5 h-5 text-primary" />
-                  Material Scanner
+                <CardTitle className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Scan className="w-5 h-5 text-primary" />
+                    Material Scanner
+                  </div>
+                  {modelStatus && !modelStatus.available && (
+                    <Badge variant="secondary" className="text-xs gap-1 font-normal">
+                      <Info className="w-3 h-3" /> Simulation Mode
+                    </Badge>
+                  )}
                 </CardTitle>
+                {modelStatus && !modelStatus.available && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {modelStatus.message || 'AI model is being trained. Results are simulated.'}
+                  </p>
+                )}
               </CardHeader>
               <CardContent>
                 <div
