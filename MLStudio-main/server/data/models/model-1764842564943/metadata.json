@@ -1,0 +1,35 @@
+{
+  "model_id": "model-1764842564943",
+  "classes": [
+    "aerated_block",
+    "aggregate",
+    "bricks",
+    "concrete",
+    "concrete_block",
+    "limestone_block",
+    "rammed_earth",
+    "timber"
+  ],
+  "num_classes": 8,
+  "class_indices": {
+    "0": "aerated_block",
+    "1": "aggregate",
+    "2": "bricks",
+    "3": "concrete",
+    "4": "concrete_block",
+    "5": "limestone_block",
+    "6": "rammed_earth",
+    "7": "timber"
+  },
+  "input_shape": [
+    224,
+    224,
+    3
+  ],
+  "training_samples": 623,
+  "validation_samples": 155,
+  "final_accuracy": 0.4558587372303009,
+  "final_val_accuracy": 0.0903225839138031,
+  "epochs_trained": 20,
+  "segmentation_enabled": false
+}

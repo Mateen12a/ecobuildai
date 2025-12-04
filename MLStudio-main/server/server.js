@@ -473,6 +473,11 @@ app.delete('/api/models/:id', async (req, res) => {
   }
 });
 
+const isWindows = process.platform === 'win32';
+const venvPath = path.join(__dirname, '..', 'worker', 'tfenv'); 
+const pythonExecutable = isWindows 
+    ? path.join(venvPath, 'Scripts', 'python.exe')
+    : path.join(venvPath, 'bin', 'python');
 app.post('/api/training/start', async (req, res) => {
   if (currentTraining) {
     return res.status(400).json({ error: 'Training already in progress' });
@@ -525,7 +530,7 @@ app.post('/api/training/start', async (req, res) => {
     
     const pythonScript = path.join(__dirname, '..', 'worker', 'train.py');
     
-    const trainProcess = spawn('python3', [
+    const trainProcess = spawn(pythonExecutable, [
       pythonScript,
       '--model-id', modelId,
       '--mongo-uri', MONGO_URI,
