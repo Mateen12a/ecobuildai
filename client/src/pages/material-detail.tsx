@@ -1,54 +1,84 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link, useRoute } from "wouter";
-import { ArrowLeft, Leaf, BarChart3, Share2, Download, Info, AlertTriangle } from "lucide-react";
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar 
-} from 'recharts';
+import { ArrowLeft, Leaf, BarChart3, Share2, Download, Info, AlertTriangle, Loader2 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import api from "@/lib/api";
 
-// Mock data for specific material
-const materialData = {
-  id: 1,
-  name: "Hempcrete Block",
-  category: "Bio-Composite",
-  description: "Hempcrete is a bio-composite material, a mixture of hemp hurds (shives) and lime, sand, or pozzolans, which is used as a material for construction and insulation. It is marketed under names like Hempcrete, Canobiote, Canosmose, and Isochanvre.",
-  properties: [
-    { name: "Thermal Conductivity", value: "0.06 W/mK" },
-    { name: "Density", value: "330 kg/m³" },
-    { name: "Fire Resistance", value: "Class B-s1, d0" },
-    { name: "Sound Absorption", value: "0.85 NRC" },
-    { name: "Compressive Strength", value: "1.0 MPa" }
-  ],
-  carbonFootprint: {
-    production: -120, // Negative because it sequesters carbon
-    transport: 12,
-    installation: 5,
-    endOfLife: -5
-  },
-  lifecycleData: [
-    { subject: 'Global Warming', A: 120, B: 110, fullMark: 150 },
-    { subject: 'Ozone Depletion', A: 98, B: 130, fullMark: 150 },
-    { subject: 'Acidification', A: 86, B: 130, fullMark: 150 },
-    { subject: 'Eutrophication', A: 99, B: 100, fullMark: 150 },
-    { subject: 'Energy Demand', A: 85, B: 90, fullMark: 150 },
-    { subject: 'Water Use', A: 65, B: 85, fullMark: 150 },
-  ],
-  certifications: ["LEED v4", "BREEAM Excellent", "Living Building Challenge"]
-};
-
-const carbonChartData = [
-  { name: 'Production', value: -120 },
-  { name: 'Transport', value: 12 },
-  { name: 'Installation', value: 5 },
-  { name: 'End of Life', value: -5 },
-];
+interface Material {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  category: string;
+  embodiedEnergy: number;
+  embodiedCarbon: number;
+  density: number;
+  impactLevel: string;
+  alternatives: { id: string; key: string; name: string; embodiedCarbon: number; impactLevel: string }[];
+}
 
 export default function MaterialDetail() {
   const [match, params] = useRoute("/materials/:id");
-  const id = params?.id;
+  const [material, setMaterial] = useState<Material | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (params?.id) {
+      loadMaterial(params.id);
+    }
+  }, [params?.id]);
+
+  const loadMaterial = async (id: string) => {
+    try {
+      const data = await api.getMaterial(id);
+      setMaterial(data);
+    } catch (error) {
+      console.error("Failed to load material:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getImpactColor = (level: string) => {
+    switch (level) {
+      case 'Very Low':
+      case 'Low': return 'bg-green-500 text-white';
+      case 'Medium': return 'bg-yellow-500 text-white';
+      case 'High':
+      case 'Very High': return 'bg-red-500 text-white';
+      default: return 'bg-gray-500 text-white';
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!material) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-2">Material Not Found</h2>
+          <Link href="/materials">
+            <Button>Back to Library</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const carbonChartData = [
+    { name: 'Embodied Carbon', value: material.embodiedCarbon },
+    { name: 'Embodied Energy', value: material.embodiedEnergy / 10 },
+  ];
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -60,33 +90,37 @@ export default function MaterialDetail() {
         </Link>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column: Image & Quick Stats */}
           <div className="space-y-6">
             <Card className="overflow-hidden border-none shadow-lg">
-              <div className="aspect-square relative">
-                <img 
-                  src="https://images.unsplash.com/photo-1589939705384-5185137a7f0f?auto=format&fit=crop&q=80&w=800" 
-                  alt={materialData.name} 
-                  className="w-full h-full object-cover"
-                />
+              <div className="aspect-square relative bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
+                <div className="text-9xl font-bold text-white/10">{material.name.charAt(0)}</div>
                 <div className="absolute top-4 left-4">
-                  <Badge className="bg-green-500 text-white border-none text-lg px-3 py-1">
-                    <Leaf className="w-4 h-4 mr-1" /> Carbon Negative
+                  <Badge className={`${getImpactColor(material.impactLevel)} border-none text-lg px-3 py-1`}>
+                    {material.impactLevel === 'Very Low' || material.impactLevel === 'Low' ? (
+                      <Leaf className="w-4 h-4 mr-1" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 mr-1" />
+                    )}
+                    {material.impactLevel}
                   </Badge>
                 </div>
               </div>
               <CardContent className="pt-6">
-                <h1 className="text-3xl font-display font-bold mb-2">{materialData.name}</h1>
-                <p className="text-sm text-muted-foreground uppercase tracking-wider font-bold mb-4">{materialData.category}</p>
+                <h1 className="text-3xl font-display font-bold mb-2">{material.name}</h1>
+                <p className="text-sm text-muted-foreground uppercase tracking-wider font-bold mb-4">{material.category}</p>
                 
                 <div className="space-y-4">
                   <div className="flex justify-between items-center p-3 bg-secondary/20 rounded-lg">
-                    <span className="text-sm font-medium">Net Carbon Impact</span>
-                    <span className="text-green-600 font-bold text-lg">-108 kg CO2e</span>
+                    <span className="text-sm font-medium">Embodied Carbon</span>
+                    <span className="font-bold text-lg">{material.embodiedCarbon} kgCO2/kg</span>
                   </div>
                   <div className="flex justify-between items-center p-3 bg-secondary/20 rounded-lg">
-                    <span className="text-sm font-medium">Recyclability</span>
-                    <span className="font-bold">100%</span>
+                    <span className="text-sm font-medium">Embodied Energy</span>
+                    <span className="font-bold text-lg">{material.embodiedEnergy} MJ/kg</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-secondary/20 rounded-lg">
+                    <span className="text-sm font-medium">Density</span>
+                    <span className="font-bold">{material.density} kg/m³</span>
                   </div>
                 </div>
               </CardContent>
@@ -99,28 +133,14 @@ export default function MaterialDetail() {
                 </Button>
               </CardFooter>
             </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Certifications</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {materialData.certifications.map((cert, i) => (
-                    <Badge key={i} variant="secondary">{cert}</Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
-          {/* Right Column: Detailed Data */}
           <div className="lg:col-span-2 space-y-6">
             <Tabs defaultValue="overview" className="w-full">
               <TabsList className="grid w-full grid-cols-3 mb-6">
-                <TabsTrigger value="overview">Overview & Specs</TabsTrigger>
-                <TabsTrigger value="lifecycle">Lifecycle Analysis</TabsTrigger>
-                <TabsTrigger value="applications">Applications</TabsTrigger>
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="environmental">Environmental</TabsTrigger>
+                <TabsTrigger value="alternatives">Alternatives</TabsTrigger>
               </TabsList>
               
               <TabsContent value="overview" className="space-y-6">
@@ -130,7 +150,7 @@ export default function MaterialDetail() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-muted-foreground leading-relaxed">
-                      {materialData.description}
+                      {material.description}
                     </p>
                   </CardContent>
                 </Card>
@@ -141,68 +161,80 @@ export default function MaterialDetail() {
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {materialData.properties.map((prop, i) => (
-                        <div key={i} className="flex justify-between p-3 border border-border rounded-lg hover:bg-secondary/10 transition-colors">
-                          <span className="text-muted-foreground">{prop.name}</span>
-                          <span className="font-medium">{prop.value}</span>
-                        </div>
-                      ))}
+                      <div className="flex justify-between p-3 border rounded-lg">
+                        <span className="text-muted-foreground">Embodied Carbon</span>
+                        <span className="font-medium">{material.embodiedCarbon} kgCO2/kg</span>
+                      </div>
+                      <div className="flex justify-between p-3 border rounded-lg">
+                        <span className="text-muted-foreground">Embodied Energy</span>
+                        <span className="font-medium">{material.embodiedEnergy} MJ/kg</span>
+                      </div>
+                      <div className="flex justify-between p-3 border rounded-lg">
+                        <span className="text-muted-foreground">Density</span>
+                        <span className="font-medium">{material.density} kg/m³</span>
+                      </div>
+                      <div className="flex justify-between p-3 border rounded-lg">
+                        <span className="text-muted-foreground">Impact Level</span>
+                        <span className="font-medium">{material.impactLevel}</span>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
               </TabsContent>
 
-              <TabsContent value="lifecycle" className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Embodied Carbon Breakdown</CardTitle>
-                      <CardDescription>kg CO2e per cubic meter</CardDescription>
-                    </CardHeader>
-                    <CardContent className="h-[300px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={carbonChartData} layout="vertical">
-                          <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                          <XAxis type="number" />
-                          <YAxis dataKey="name" type="category" width={100} />
-                          <Tooltip />
-                          <Bar dataKey="value" fill="#16a34a" radius={[0, 4, 4, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Environmental Impact</CardTitle>
-                      <CardDescription>Comparative Analysis vs Standard Concrete</CardDescription>
-                    </CardHeader>
-                    <CardContent className="h-[300px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <RadarChart cx="50%" cy="50%" outerRadius="80%" data={materialData.lifecycleData}>
-                          <PolarGrid />
-                          <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10 }} />
-                          <PolarRadiusAxis angle={30} domain={[0, 150]} />
-                          <Radar name="Hempcrete" dataKey="A" stroke="#16a34a" fill="#16a34a" fillOpacity={0.6} />
-                          <Radar name="Standard Concrete" dataKey="B" stroke="#ef4444" fill="#ef4444" fillOpacity={0.3} />
-                          <Tooltip />
-                        </RadarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="applications">
-                <Card className="bg-secondary/10 border-dashed">
-                  <CardContent className="pt-6 text-center py-12">
-                    <Info className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium mb-2">Application Guidelines</h3>
-                    <p className="text-muted-foreground max-w-md mx-auto">
-                      Suitable for non-load bearing walls, insulation layers, and moisture regulation in heritage buildings. Not recommended for foundations or below-grade applications without specialized waterproofing.
-                    </p>
+              <TabsContent value="environmental" className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Environmental Impact</CardTitle>
+                    <CardDescription>Carbon and energy metrics</CardDescription>
+                  </CardHeader>
+                  <CardContent className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={carbonChartData} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                        <XAxis type="number" />
+                        <YAxis dataKey="name" type="category" width={120} />
+                        <Tooltip />
+                        <Bar dataKey="value" fill="#16a34a" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
                   </CardContent>
                 </Card>
+              </TabsContent>
+
+              <TabsContent value="alternatives">
+                {material.alternatives && material.alternatives.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {material.alternatives.map((alt, i) => (
+                      <Link key={i} href={`/materials/${alt.key}`}>
+                        <Card className="hover:shadow-lg transition-all cursor-pointer h-full">
+                          <CardContent className="p-6">
+                            <h3 className="font-bold text-lg mb-2">{alt.name}</h3>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-muted-foreground">Embodied Carbon:</span>
+                              <span className="font-mono">{alt.embodiedCarbon} kgCO2/kg</span>
+                            </div>
+                            {alt.embodiedCarbon < material.embodiedCarbon && (
+                              <Badge className="mt-3 bg-green-100 text-green-700">
+                                {Math.round((1 - alt.embodiedCarbon / material.embodiedCarbon) * 100)}% less carbon
+                              </Badge>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <Card className="bg-secondary/10 border-dashed">
+                    <CardContent className="pt-6 text-center py-12">
+                      <Info className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                      <h3 className="text-lg font-medium mb-2">No Alternatives Available</h3>
+                      <p className="text-muted-foreground max-w-md mx-auto">
+                        This material doesn't have documented alternatives in the ICE database.
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
               </TabsContent>
             </Tabs>
           </div>

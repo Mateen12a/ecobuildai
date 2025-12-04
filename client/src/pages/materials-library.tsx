@@ -1,45 +1,109 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Filter, Leaf, AlertTriangle, ArrowLeft } from "lucide-react";
+import { Search, Filter, Leaf, AlertTriangle, ArrowLeft, Loader2 } from "lucide-react";
 import { Link } from "wouter";
-import { useState } from "react";
+import api from "@/lib/api";
 
-// Mock data for materials
-const materials = [
-  { id: 1, name: "Hempcrete Block", category: "Bio-Composite", impact: "Very Low", impactColor: "bg-green-100 text-green-700", carbon: "-108 kg", image: "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?auto=format&fit=crop&q=80&w=800" },
-  { id: 2, name: "Recycled Steel Beam", category: "Metal", impact: "Medium", impactColor: "bg-yellow-100 text-yellow-700", carbon: "450 kg", image: "https://images.unsplash.com/photo-1535063406549-79632a25a8b3?auto=format&fit=crop&q=80&w=800" },
-  { id: 3, name: "Cross Laminated Timber", category: "Wood", impact: "Low", impactColor: "bg-green-100 text-green-700", carbon: "-450 kg", image: "https://images.unsplash.com/photo-1605112917064-82438d2c9003?auto=format&fit=crop&q=80&w=800" },
-  { id: 4, name: "Standard Concrete C25", category: "Concrete", impact: "High", impactColor: "bg-red-100 text-red-700", carbon: "2400 kg", image: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=80&w=800" },
-  { id: 5, name: "Mycelium Insulation", category: "Bio-Material", impact: "Very Low", impactColor: "bg-green-100 text-green-700", carbon: "-15 kg", image: "https://images.unsplash.com/photo-1611420379240-592943150407?auto=format&fit=crop&q=80&w=800" },
-  { id: 6, name: "Bamboo Flooring", category: "Wood", impact: "Low", impactColor: "bg-green-100 text-green-700", carbon: "25 kg", image: "https://images.unsplash.com/photo-1610504463627-7937732c9452?auto=format&fit=crop&q=80&w=800" },
-];
+interface Material {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  category: string;
+  embodiedEnergy: number;
+  embodiedCarbon: number;
+  density: number;
+  impactLevel: string;
+  impactColor: { bg: string; text: string };
+}
 
 export default function MaterialsLibrary() {
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [categories, setCategories] = useState<string[]>([]);
 
-  const filteredMaterials = materials.filter(m => 
-    m.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    m.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  useEffect(() => {
+    loadMaterials();
+    loadCategories();
+  }, []);
+
+  const loadMaterials = async () => {
+    try {
+      const data = await api.getMaterials();
+      setMaterials(data);
+    } catch (error) {
+      console.error("Failed to load materials:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadCategories = async () => {
+    try {
+      const data = await api.getMaterialCategories();
+      setCategories(data);
+    } catch (error) {
+      console.error("Failed to load categories:", error);
+    }
+  };
+
+  const filteredMaterials = materials.filter(m => {
+    const matchesSearch = m.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          m.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          m.category.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = !selectedCategory || m.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const getImpactIcon = (level: string) => {
+    return level === 'High' || level === 'Very High' ? AlertTriangle : Leaf;
+  };
+
+  const getImpactColorClass = (level: string) => {
+    switch (level) {
+      case 'Very Low':
+      case 'Low':
+        return 'bg-green-100 text-green-700';
+      case 'Medium':
+        return 'bg-yellow-100 text-yellow-700';
+      case 'High':
+        return 'bg-red-100 text-red-700';
+      case 'Very High':
+        return 'bg-red-200 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-700';
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-20">
       <div className="container mx-auto px-4 pt-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <Link href="/">
+            <Link href="/dashboard">
               <Button variant="ghost" className="mb-2 pl-0 hover:pl-2 transition-all text-muted-foreground">
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
               </Button>
             </Link>
             <h1 className="text-3xl font-display font-bold">Materials Library</h1>
-            <p className="text-muted-foreground">Database of 2,400+ construction materials and their environmental impact.</p>
+            <p className="text-muted-foreground">ICE Database - {materials.length} construction materials with environmental impact data.</p>
           </div>
         </div>
 
-        <div className="flex gap-4 mb-8">
+        <div className="flex flex-col md:flex-row gap-4 mb-8">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input 
@@ -49,45 +113,78 @@ export default function MaterialsLibrary() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Button variant="outline" className="active:scale-95 transition-transform">
-            <Filter className="w-4 h-4 mr-2" /> Filters
-          </Button>
+          <div className="flex gap-2 flex-wrap">
+            <Button 
+              variant={selectedCategory === "" ? "default" : "outline"} 
+              size="sm"
+              onClick={() => setSelectedCategory("")}
+            >
+              All
+            </Button>
+            {categories.map((cat) => (
+              <Button
+                key={cat}
+                variant={selectedCategory === cat ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedCategory(cat)}
+              >
+                {cat}
+              </Button>
+            ))}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredMaterials.map((material) => (
-            <Link key={material.id} href={`/materials/${material.id}`}>
-              <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 border-none shadow-md cursor-pointer group hover:-translate-y-1">
-                <div className="h-48 overflow-hidden relative">
-                  <img src={material.image} alt={material.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                  <div className="absolute top-3 right-3">
-                    <Badge className={`${material.impactColor} border-none`}>
-                      {material.impact === 'High' ? <AlertTriangle className="w-3 h-3 mr-1" /> : <Leaf className="w-3 h-3 mr-1" />}
-                      {material.impact} Impact
-                    </Badge>
-                  </div>
-                </div>
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{material.category}</span>
-                      <CardTitle className="text-xl group-hover:text-primary transition-colors">{material.name}</CardTitle>
+          {filteredMaterials.map((material) => {
+            const ImpactIcon = getImpactIcon(material.impactLevel);
+            return (
+              <Link key={material.id} href={`/materials/${material.id}`}>
+                <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 border-none shadow-md cursor-pointer group hover:-translate-y-1 h-full">
+                  <div className="h-32 bg-gradient-to-br from-slate-800 to-slate-900 relative overflow-hidden flex items-center justify-center">
+                    <div className="text-6xl font-bold text-white/10">{material.name.charAt(0)}</div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                    <div className="absolute top-3 right-3">
+                      <Badge className={`${getImpactColorClass(material.impactLevel)} border-none`}>
+                        <ImpactIcon className="w-3 h-3 mr-1" />
+                        {material.impactLevel} Impact
+                      </Badge>
+                    </div>
+                    <div className="absolute bottom-3 left-3">
+                      <Badge variant="secondary" className="bg-white/20 text-white border-none backdrop-blur-sm">
+                        {material.category}
+                      </Badge>
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Embodied Carbon:</span>
-                    <span className="font-mono font-medium">{material.carbon} CO2e/m³</span>
-                  </div>
-                </CardContent>
-                <CardFooter className="bg-secondary/20 pt-4 group-hover:bg-secondary/40 transition-colors">
-                  <Button variant="ghost" className="w-full text-primary hover:text-primary/80">View Details</Button>
-                </CardFooter>
-              </Card>
-            </Link>
-          ))}
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-xl group-hover:text-primary transition-colors">{material.name}</CardTitle>
+                    <p className="text-sm text-muted-foreground line-clamp-2">{material.description}</p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-muted-foreground block">Embodied Carbon</span>
+                        <span className="font-mono font-medium">{material.embodiedCarbon} kgCO2/kg</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block">Embodied Energy</span>
+                        <span className="font-mono font-medium">{material.embodiedEnergy} MJ/kg</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="bg-secondary/20 pt-4 group-hover:bg-secondary/40 transition-colors">
+                    <Button variant="ghost" className="w-full text-primary hover:text-primary/80">View Details</Button>
+                  </CardFooter>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
+
+        {filteredMaterials.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">No materials found matching your search.</p>
+          </div>
+        )}
       </div>
     </div>
   );
