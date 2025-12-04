@@ -14,6 +14,8 @@ import MaterialImage from './models/MaterialImage.js';
 import TrainedModel from './models/TrainedModel.js';
 import CustomMaterial from './models/CustomMaterial.js';
 import { ICE_MATERIALS, getMaterialByKey, getAllMaterials } from './config/materials.js';
+import StagedImage from './models/StagedImage.js';
+import { searchImages, downloadImage } from './services/imageSearch.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -934,6 +936,201 @@ app.get('/api/models/:id/sync-status', async (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ error: 'Failed to check sync status' });
+  }
+});
+
+app.get('/api/image-scrape/search', async (req, res) => {
+  try {
+    const { q, count = 20 } = req.query;
+    
+    if (!q || q.trim().length === 0) {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+    
+    const results = await searchImages(q.trim(), parseInt(count));
+    
+    res.json({
+      query: q,
+      count: results.length,
+      results
+    });
+  } catch (error) {
+    console.error('Image search error:', error);
+    res.status(500).json({ error: 'Failed to search images' });
+  }
+});
+
+app.post('/api/image-scrape/stage', async (req, res) => {
+  try {
+    const { query, items } = req.body;
+    
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'No items to stage' });
+    }
+    
+    const stagedItems = [];
+    
+    for (const item of items) {
+      const staged = await StagedImage.create({
+        searchQuery: query,
+        thumbnailUrl: item.thumbnailUrl,
+        fullImageUrl: item.fullImageUrl,
+        source: item.source,
+        title: item.title,
+        width: item.width,
+        height: item.height
+      });
+      
+      stagedItems.push({
+        id: staged._id.toString(),
+        ...item
+      });
+    }
+    
+    res.json({
+      success: true,
+      staged: stagedItems.length,
+      items: stagedItems
+    });
+  } catch (error) {
+    console.error('Stage error:', error);
+    res.status(500).json({ error: 'Failed to stage images' });
+  }
+});
+
+app.get('/api/image-scrape/staged', async (req, res) => {
+  try {
+    const { query } = req.query;
+    
+    const filter = { status: 'staged' };
+    if (query) filter.searchQuery = query;
+    
+    const staged = await StagedImage.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(100);
+    
+    res.json(staged.map(s => ({
+      id: s._id.toString(),
+      searchQuery: s.searchQuery,
+      thumbnailUrl: s.thumbnailUrl,
+      fullImageUrl: s.fullImageUrl,
+      source: s.source,
+      title: s.title,
+      width: s.width,
+      height: s.height,
+      createdAt: s.createdAt
+    })));
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch staged images' });
+  }
+});
+
+app.post('/api/image-scrape/curate', async (req, res) => {
+  try {
+    const { materialKey, stagedIds } = req.body;
+    
+    if (!materialKey) {
+      return res.status(400).json({ error: 'Material key is required' });
+    }
+    
+    if (!stagedIds || !Array.isArray(stagedIds) || stagedIds.length === 0) {
+      return res.status(400).json({ error: 'No images selected' });
+    }
+    
+    const material = await getMaterialByKey(materialKey);
+    if (!material) {
+      return res.status(400).json({ error: 'Invalid material class' });
+    }
+    
+    const savedImages = [];
+    const errors = [];
+    
+    for (const stagedId of stagedIds) {
+      try {
+        const staged = await StagedImage.findById(stagedId);
+        if (!staged || staged.status !== 'staged') {
+          errors.push({ id: stagedId, error: 'Not found or already processed' });
+          continue;
+        }
+        
+        const imageBuffer = await downloadImage(staged.fullImageUrl);
+        
+        const preprocessed = await sharp(imageBuffer)
+          .resize(224, 224, { fit: 'cover' })
+          .jpeg({ quality: 90 })
+          .toBuffer();
+        
+        const newImage = await MaterialImage.create({
+          filename: `scraped_${staged._id}.jpg`,
+          material_key: materialKey,
+          material_official: material.name,
+          data: preprocessed,
+          content_type: 'image/jpeg',
+          width: 224,
+          height: 224,
+          source: staged.source,
+          original_url: staged.fullImageUrl,
+          embodied_energy_mj_per_kg: material.embodiedEnergy_MJ_kg,
+          embodied_carbon_kgco2_kg: material.embodiedCarbon_kgCO2_kg,
+          density_kg_m3: material.density_kg_m3
+        });
+        
+        await StagedImage.findByIdAndUpdate(stagedId, { status: 'accepted' });
+        
+        savedImages.push({
+          id: newImage._id.toString(),
+          filename: newImage.filename,
+          url: `/api/images/${newImage._id}`,
+          thumbnailUrl: `/api/images/${newImage._id}/thumbnail`
+        });
+      } catch (itemError) {
+        console.error(`Error processing staged image ${stagedId}:`, itemError.message);
+        errors.push({ id: stagedId, error: itemError.message });
+      }
+    }
+    
+    if (savedImages.length > 0) {
+      broadcast({ type: 'images_uploaded', classId: materialKey, count: savedImages.length });
+    }
+    
+    res.json({
+      success: true,
+      saved: savedImages.length,
+      failed: errors.length,
+      images: savedImages,
+      errors
+    });
+  } catch (error) {
+    console.error('Curate error:', error);
+    res.status(500).json({ error: 'Failed to curate images' });
+  }
+});
+
+app.post('/api/image-scrape/discard', async (req, res) => {
+  try {
+    const { stagedIds } = req.body;
+    
+    if (!stagedIds || !Array.isArray(stagedIds)) {
+      return res.status(400).json({ error: 'No images to discard' });
+    }
+    
+    const result = await StagedImage.updateMany(
+      { _id: { $in: stagedIds.map(id => new mongoose.Types.ObjectId(id)) } },
+      { status: 'discarded' }
+    );
+    
+    res.json({ success: true, discarded: result.modifiedCount });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to discard images' });
+  }
+});
+
+app.delete('/api/image-scrape/staged', async (req, res) => {
+  try {
+    const result = await StagedImage.deleteMany({ status: { $in: ['staged', 'discarded'] } });
+    res.json({ success: true, deleted: result.deletedCount });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to clear staged images' });
   }
 });
 

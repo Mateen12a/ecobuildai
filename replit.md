@@ -145,3 +145,23 @@ Preferred communication style: Simple, everyday language.
 - Added "Sync to EcoBuild" button in MLStudio Models page UI with sync status indicators
 - Models can be activated during sync or activated later from EcoBuild's Models page
 - Both applications share the same MongoDB database (Construction_test) for seamless integration
+
+**Image Scraping Feature** (December 4, 2025): Added web image search and curation workflow to MLStudio:
+- Created `StagedImage` model for temporary image staging with 24-hour TTL expiry
+- Added `/api/image-scrape/search` endpoint for searching web images (uses Unsplash/Pixabay as fallback sources)
+- Added `/api/image-scrape/stage` endpoint to stage selected images for review
+- Added `/api/image-scrape/curate` endpoint to download, preprocess (224x224), and add images to MaterialImage collection
+- Added `/api/image-scrape/discard` endpoint to remove unwanted staged images
+- Updated Dataset Manager UI with "Search Web Images" toggle and integrated image gallery
+- Two-phase workflow: Search → Stage → Curate ensures quality control before adding to training dataset
+- Supports Google Custom Search API (optional) or falls back to free Unsplash/Pixabay APIs
+- Images are preprocessed using Sharp to match training input requirements (224x224 JPEG)
+
+## Python Virtual Environment
+
+The MLStudio worker uses a Python virtual environment (`tfenv`) for TensorFlow and ML dependencies:
+- Location: `MLStudio-main/worker/tfenv/`
+- Python version: 3.11
+- Key packages: tensorflow>=2.15.0, numpy, pillow, scikit-learn, pymongo, opencv-python-headless
+- Activation: `source MLStudio-main/worker/tfenv/bin/activate`
+- Requirements: `MLStudio-main/worker/requirements.txt`

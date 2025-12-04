@@ -17,6 +17,7 @@ const materialImageSchema = new mongoose.Schema({
   density_kg_m3: { type: Number, default: null },
   weight_kg_m2: { type: Number, default: null },
   source: { type: String, default: null },
+  original_url: { type: String, default: null },
   segmentation_mask: { type: Buffer, default: null },
   regions: [{
     material_key: String,
