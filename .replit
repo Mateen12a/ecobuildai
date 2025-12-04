@@ -22,10 +22,10 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "MLStudio"
+args = "Start application"
 
 [[workflows.workflow]]
-name = "MLStudio"
+name = "Start application"
 author = "agent"
 
 [[workflows.workflow.tasks]]
@@ -45,12 +45,12 @@ localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 5001
-externalPort = 3000
-
-[[ports]]
 localPort = 40433
 externalPort = 3002
+
+[[ports]]
+localPort = 44777
+externalPort = 3000
 
 [deployment]
 deploymentTarget = "autoscale"
