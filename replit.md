@@ -69,7 +69,12 @@ Preferred communication style: Simple, everyday language.
 
 **Database**: MongoDB Atlas cluster accessed via connection string with credentials embedded. Database name: `Construction_test`.
 
-**ML Training Service** (MLStudio Integration): Separate Python-based training worker using TensorFlow/Keras for MobileNetV2 transfer learning. Communicates via WebSocket for real-time training progress updates. Training scripts located in `/MLStudio-main/worker/`.
+**ML Training Service** (MLStudio Integration): Python-based training worker using TensorFlow 2.20/Keras with EfficientNetB0 architecture. Features:
+- `/MLStudio-main/worker/train.py` - Main training script with 3-phase progressive unfreezing, class-weighted learning, and comprehensive augmentation
+- `/MLStudio-main/worker/add_training_images.py` - Data management tool for adding/deduplicating training images
+- `/MLStudio-main/worker/sync_model_to_ecobuild.py` - Model synchronization tool to deploy trained models to EcoBuild
+- `/MLStudio-main/worker/predict.py` - Inference script used by EcoBuild for real predictions
+- `/server/services/modelInference.ts` - Node.js service that bridges to Python for ML predictions
 
 **Material Data**: ICE (Inventory of Carbon and Energy) database materials hardcoded in `/server/routes/materials.ts` and `/MLStudio-main/server/config/materials.js`. Contains 15+ construction materials with embodied energy (MJ/kg), embodied carbon (kgCO2/kg), and density values.
 
