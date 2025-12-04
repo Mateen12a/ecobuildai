@@ -23,17 +23,25 @@ import { formatDistanceToNow } from 'date-fns';
 
 interface ScanItem {
   id: string;
-  materialName: string;
-  materialClass: string;
-  confidence: number;
   imagePath: string;
-  embodiedCarbon: number;
-  embodiedEnergy: number;
-  density: number;
-  recyclability: string;
-  isSimulation: boolean;
+  prediction: {
+    class: string;
+    className: string;
+    confidence: number;
+  };
+  allPredictions?: { class: string; className: string; confidence: number }[];
+  material: {
+    name: string;
+    embodiedCarbon: number;
+    embodiedEnergy: number;
+    density: number;
+    recyclability?: string;
+    alternatives?: { key: string; name: string; embodiedCarbon: number; embodiedEnergy: number }[];
+  };
+  confidence: number;
+  boundingBox?: { x: number; y: number; width: number; height: number };
+  modelName?: string;
   createdAt: string;
-  alternatives: { name: string; embodiedCarbon: number }[];
 }
 
 export default function ScanHistory() {
@@ -68,10 +76,12 @@ export default function ScanHistory() {
     },
   });
 
-  const filteredScans = scans?.filter(scan => 
-    scan.materialName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    scan.materialClass.toLowerCase().includes(searchQuery.toLowerCase())
-  ) || [];
+  const filteredScans = scans?.filter(scan => {
+    const materialName = scan.material?.name || scan.prediction?.className || '';
+    const materialClass = scan.prediction?.class || '';
+    return materialName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           materialClass.toLowerCase().includes(searchQuery.toLowerCase());
+  }) || [];
 
   const formatDate = (dateString: string) => {
     return formatDistanceToNow(new Date(dateString), { addSuffix: true });
@@ -81,6 +91,10 @@ export default function ScanHistory() {
     if (confidence >= 0.9) return 'text-green-500';
     if (confidence >= 0.7) return 'text-yellow-500';
     return 'text-orange-500';
+  };
+
+  const getMaterialName = (scan: ScanItem) => {
+    return scan.material?.name || scan.prediction?.className || 'Unknown Material';
   };
 
   if (!isAuthenticated) {
@@ -198,7 +212,7 @@ export default function ScanHistory() {
                       {scan.imagePath ? (
                         <img 
                           src={scan.imagePath} 
-                          alt={scan.materialName}
+                          alt={getMaterialName(scan)}
                           className="w-full h-full object-cover"
                         />
                       ) : (
@@ -206,17 +220,12 @@ export default function ScanHistory() {
                           <Box className="w-12 h-12 text-muted-foreground" />
                         </div>
                       )}
-                      {scan.isSimulation && (
-                        <Badge variant="secondary" className="absolute top-2 right-2 text-xs">
-                          Simulation
-                        </Badge>
-                      )}
                     </div>
                     <CardContent className="p-4 space-y-3">
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <h3 className="font-semibold truncate" data-testid={`text-material-name-${scan.id}`}>
-                            {scan.materialName}
+                            {getMaterialName(scan)}
                           </h3>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Calendar className="w-3 h-3" />
@@ -229,10 +238,10 @@ export default function ScanHistory() {
                       </div>
                       <div className="flex gap-2 text-xs text-muted-foreground">
                         <span className="bg-secondary/50 px-2 py-1 rounded">
-                          {scan.embodiedCarbon} kgCO2e
+                          {scan.material?.embodiedCarbon || 0} kgCO2e
                         </span>
                         <span className="bg-secondary/50 px-2 py-1 rounded">
-                          {scan.density} kg/m3
+                          {scan.material?.density || 0} kg/m3
                         </span>
                       </div>
                     </CardContent>
@@ -260,7 +269,7 @@ export default function ScanHistory() {
                     <Scan className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <span data-testid="text-detail-material-name">{selectedScan.materialName}</span>
+                    <span data-testid="text-detail-material-name">{getMaterialName(selectedScan)}</span>
                     <p className="text-sm font-normal text-muted-foreground">{formatDate(selectedScan.createdAt)}</p>
                   </div>
                 </DialogTitle>
@@ -284,7 +293,7 @@ export default function ScanHistory() {
                     {selectedScan.imagePath ? (
                       <img 
                         src={selectedScan.imagePath} 
-                        alt={selectedScan.materialName}
+                        alt={getMaterialName(selectedScan)}
                         className="w-full h-full object-cover"
                       />
                     ) : (
@@ -313,7 +322,7 @@ export default function ScanHistory() {
                         <line x1="300" y1="220" x2="350" y2="190" stroke="currentColor" strokeWidth="2" className="text-primary" />
                         <circle cx="200" cy="150" r="40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 2" className="text-green-500" />
                         <text x="200" y="155" textAnchor="middle" className="fill-green-500 text-xs font-mono">
-                          {selectedScan.materialName}
+                          {getMaterialName(selectedScan)}
                         </text>
                       </g>
                     </svg>
@@ -324,19 +333,19 @@ export default function ScanHistory() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
                 <div className="bg-secondary/50 rounded-lg p-3 text-center">
                   <p className="text-lg font-bold text-orange-500">
-                    {selectedScan.embodiedCarbon}
+                    {selectedScan.material?.embodiedCarbon || 0}
                   </p>
                   <p className="text-xs text-muted-foreground">kgCO2e/kg</p>
                 </div>
                 <div className="bg-secondary/50 rounded-lg p-3 text-center">
                   <p className="text-lg font-bold text-blue-500">
-                    {selectedScan.embodiedEnergy}
+                    {selectedScan.material?.embodiedEnergy || 0}
                   </p>
                   <p className="text-xs text-muted-foreground">MJ/kg</p>
                 </div>
                 <div className="bg-secondary/50 rounded-lg p-3 text-center">
                   <p className="text-lg font-bold">
-                    {selectedScan.density}
+                    {selectedScan.material?.density || 0}
                   </p>
                   <p className="text-xs text-muted-foreground">kg/m3</p>
                 </div>
@@ -348,11 +357,11 @@ export default function ScanHistory() {
                 </div>
               </div>
 
-              {selectedScan.alternatives && selectedScan.alternatives.length > 0 && (
+              {selectedScan.material?.alternatives && selectedScan.material.alternatives.length > 0 && (
                 <div className="mt-4 p-4 bg-green-500/10 rounded-lg">
                   <h4 className="font-semibold text-green-700 dark:text-green-400 mb-2">Sustainable Alternatives</h4>
                   <div className="flex gap-2 flex-wrap">
-                    {selectedScan.alternatives.map((alt, idx) => (
+                    {selectedScan.material.alternatives.map((alt, idx) => (
                       <Badge key={idx} variant="secondary">
                         {alt.name} ({alt.embodiedCarbon} kgCO2e)
                       </Badge>

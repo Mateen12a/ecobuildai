@@ -163,7 +163,7 @@ export default function Home() {
               <Clock className="w-4 h-4" /> History
             </Link>
             <Link href="/ml-admin" className="hover:text-primary transition-colors flex items-center gap-2">
-              <Cpu className="w-4 h-4" /> ML Admin
+              <Cpu className="w-4 h-4" /> Models
             </Link>
           </div>
 
@@ -217,7 +217,7 @@ export default function Home() {
                   <Link href="/projects"><Button variant="ghost" className="w-full justify-start text-lg font-medium"><FolderOpen className="mr-3 w-5 h-5" /> Projects</Button></Link>
                   <Link href="/reports"><Button variant="ghost" className="w-full justify-start text-lg font-medium"><FileText className="mr-3 w-5 h-5" /> Reports</Button></Link>
                   <Link href="/history"><Button variant="ghost" className="w-full justify-start text-lg font-medium"><Clock className="mr-3 w-5 h-5" /> Scan History</Button></Link>
-                  <Link href="/ml-admin"><Button variant="ghost" className="w-full justify-start text-lg font-medium"><Cpu className="mr-3 w-5 h-5" /> ML Admin</Button></Link>
+                  <Link href="/ml-admin"><Button variant="ghost" className="w-full justify-start text-lg font-medium"><Cpu className="mr-3 w-5 h-5" /> Models</Button></Link>
                   <div className="border-t pt-4 mt-4">
                     <Button variant="ghost" className="w-full justify-start text-lg font-medium text-destructive hover:text-destructive" onClick={handleLogout}>
                       <LogOut className="mr-3 w-5 h-5" /> Log out
