@@ -332,6 +332,36 @@ class ApiClient {
   async getMLModelStats() {
     return this.request<any>('/models/stats');
   }
+
+  async getLocalModels() {
+    return this.request<any[]>('/models/local');
+  }
+
+  async testModel(formData: FormData) {
+    return this.request<{ prediction: string; confidence: number; allPredictions: { class: string; confidence: number }[] }>('/models/test', {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
+  async syncModel(modelId: string) {
+    return this.request<any>(`/models/sync/${modelId}`, {
+      method: 'POST',
+    });
+  }
+
+  async activateModel(modelId: string) {
+    return this.request<any>(`/models/${modelId}/activate`, {
+      method: 'POST',
+    });
+  }
+
+  async startTraining(config: { epochs: number; batchSize: number; learningRate: number; validationSplit: number; enableSegmentation: boolean }) {
+    return this.request<any>('/models/train', {
+      method: 'POST',
+      body: config,
+    });
+  }
 }
 
 export const api = new ApiClient();

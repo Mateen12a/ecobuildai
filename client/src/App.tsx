@@ -26,6 +26,7 @@ import ApiDocs from "@/pages/api-docs";
 import Pricing from "@/pages/pricing";
 import Features from "@/pages/features";
 import ScanHistory from "@/pages/scan-history";
+import MLAdmin from "@/pages/ml-admin";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, loading } = useAuth();
@@ -75,6 +76,9 @@ function Router() {
       </Route>
       <Route path="/history">
         <ProtectedRoute component={ScanHistory} />
+      </Route>
+      <Route path="/ml-admin">
+        <ProtectedRoute component={MLAdmin} />
       </Route>
       <Route path="/about" component={About} />
       <Route path="/privacy" component={Privacy} />

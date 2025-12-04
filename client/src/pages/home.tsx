@@ -128,9 +128,9 @@ export default function Home() {
   };
 
   const dashboardStats = [
-    { label: "Total Scans", value: stats.totalScans.toString(), icon: Scan, color: "text-blue-500", bg: "bg-blue-500/10" },
-    { label: "Carbon Saved", value: `${stats.carbonSaved.toFixed(1)}kg`, icon: Leaf, color: "text-green-500", bg: "bg-green-500/10" },
-    { label: "Active Projects", value: stats.activeProjects.toString(), icon: Building2, color: "text-purple-500", bg: "bg-purple-500/10" },
+    { label: "Total Scans", value: stats.totalScans.toString(), icon: Scan, color: "text-blue-500", bg: "bg-blue-500/10", link: "/history" },
+    { label: "Carbon Saved", value: `${stats.carbonSaved.toFixed(1)}kg`, icon: Leaf, color: "text-green-500", bg: "bg-green-500/10", link: null },
+    { label: "Active Projects", value: stats.activeProjects.toString(), icon: Building2, color: "text-purple-500", bg: "bg-purple-500/10", link: "/projects" },
   ];
 
   return (
@@ -161,6 +161,9 @@ export default function Home() {
             </Link>
             <Link href="/history" className="hover:text-primary transition-colors flex items-center gap-2">
               <Clock className="w-4 h-4" /> History
+            </Link>
+            <Link href="/ml-admin" className="hover:text-primary transition-colors flex items-center gap-2">
+              <Cpu className="w-4 h-4" /> ML Admin
             </Link>
           </div>
 
@@ -214,6 +217,7 @@ export default function Home() {
                   <Link href="/projects"><Button variant="ghost" className="w-full justify-start text-lg font-medium"><FolderOpen className="mr-3 w-5 h-5" /> Projects</Button></Link>
                   <Link href="/reports"><Button variant="ghost" className="w-full justify-start text-lg font-medium"><FileText className="mr-3 w-5 h-5" /> Reports</Button></Link>
                   <Link href="/history"><Button variant="ghost" className="w-full justify-start text-lg font-medium"><Clock className="mr-3 w-5 h-5" /> Scan History</Button></Link>
+                  <Link href="/ml-admin"><Button variant="ghost" className="w-full justify-start text-lg font-medium"><Cpu className="mr-3 w-5 h-5" /> ML Admin</Button></Link>
                   <div className="border-t pt-4 mt-4">
                     <Button variant="ghost" className="w-full justify-start text-lg font-medium text-destructive hover:text-destructive" onClick={handleLogout}>
                       <LogOut className="mr-3 w-5 h-5" /> Log out
@@ -235,17 +239,33 @@ export default function Home() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {dashboardStats.map((stat, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
-              <Card className="border-none shadow-sm hover:shadow-md transition-shadow">
-                <CardContent className="p-6 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground mb-1">{stat.label}</p>
-                    <h3 className="text-3xl font-bold">{stat.value}</h3>
-                  </div>
-                  <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
-                    <stat.icon className="w-6 h-6" />
-                  </div>
-                </CardContent>
-              </Card>
+              {stat.link ? (
+                <Link href={stat.link}>
+                  <Card className="border-none shadow-sm hover:shadow-md transition-shadow cursor-pointer hover-elevate" data-testid={`card-stat-${stat.label.toLowerCase().replace(/\s+/g, '-')}`}>
+                    <CardContent className="p-6 flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground mb-1">{stat.label}</p>
+                        <h3 className="text-3xl font-bold">{stat.value}</h3>
+                      </div>
+                      <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
+                        <stat.icon className="w-6 h-6" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ) : (
+                <Card className="border-none shadow-sm hover:shadow-md transition-shadow" data-testid={`card-stat-${stat.label.toLowerCase().replace(/\s+/g, '-')}`}>
+                  <CardContent className="p-6 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-1">{stat.label}</p>
+                      <h3 className="text-3xl font-bold">{stat.value}</h3>
+                    </div>
+                    <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
+                      <stat.icon className="w-6 h-6" />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </motion.div>
           ))}
         </div>

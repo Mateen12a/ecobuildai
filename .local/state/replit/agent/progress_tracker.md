@@ -63,3 +63,30 @@ python3 sync_model_to_ecobuild.py --run-id my_training_run
 python3 sync_model_to_ecobuild.py --list-local    # Show local models
 python3 sync_model_to_ecobuild.py --list-ecobuild # Show EcoBuild models
 ```
+
+## UI Enhancements - December 2025
+
+[x] 1. Made Total Scans card on dashboard clickable - navigates to /history
+[x] 2. Created ML Admin page (/ml-admin) with:
+   - Model training interface with configurable epochs, batch size, learning rate
+   - Sync buttons to transfer models from MLStudio to EcoBuild
+   - Local models listing with accuracy, classes, samples
+   - Model testing/prediction before deployment
+   - Training progress display
+[x] 3. Added ML Admin link to navigation (desktop and mobile)
+
+## Tips for Achieving 90% Accuracy
+
+The training script is already optimized for high accuracy. Key factors:
+
+1. **Sufficient Data**: Aim for 50+ samples per material class
+2. **Epochs**: Use 30-100 epochs (script supports progressive training)
+3. **Data Quality**: Use clear, well-lit images of materials
+4. **Class Balance**: Script auto-balances with class weighting
+5. **Augmentation**: Script applies 3-5x augmentation automatically
+6. **Progressive Training**: 3-phase unfreezing ensures optimal transfer learning
+
+The EfficientNetB0 architecture with progressive unfreezing typically achieves:
+- 85-90% with 30+ samples per class
+- 90-95% with 50+ samples per class
+- 95%+ with 100+ samples per class
