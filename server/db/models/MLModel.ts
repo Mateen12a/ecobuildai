@@ -13,8 +13,14 @@ export interface IMLModel extends Document {
   epochs: number;
   trainingTime: number;
   modelPath?: string;
+  labelsPath?: string;
+  classes?: string[];
+  classIndices?: Record<string, string>;
+  inputShape?: number[];
+  architecture?: string;
+  mlstudioModelId?: string;
   isActive: boolean;
-  createdBy: mongoose.Types.ObjectId;
+  createdBy?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,6 +42,12 @@ const MLModelSchema = new Schema<IMLModel>({
   epochs: { type: Number, default: 0 },
   trainingTime: { type: Number, default: 0 },
   modelPath: { type: String },
+  labelsPath: { type: String },
+  classes: [{ type: String }],
+  classIndices: { type: Schema.Types.Mixed },
+  inputShape: [{ type: Number }],
+  architecture: { type: String },
+  mlstudioModelId: { type: String },
   isActive: { type: Boolean, default: false },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User' }
 }, {

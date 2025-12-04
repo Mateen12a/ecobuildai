@@ -5,6 +5,7 @@ import fs from 'fs';
 import { Scan, User, MLModel } from '../db/models';
 import { authMiddleware, AuthRequest, optionalAuthMiddleware } from '../middleware/auth';
 import { v4 as uuidv4 } from 'uuid';
+import { predictWithModel } from '../services/modelInference';
 
 const router = Router();
 
@@ -230,27 +231,58 @@ router.post('/predict', optionalAuthMiddleware, upload.single('image'), async (r
 
     const activeModel = await MLModel.findOne({ isActive: true, status: 'ready' });
     
-    const randomIndex = Math.floor(Math.random() * MATERIAL_KEYS.length);
-    const predictedKey = MATERIAL_KEYS[randomIndex];
-    const material = ICE_MATERIALS[predictedKey];
-
-    const predictions = MATERIAL_KEYS.map((key) => {
-      let confidence = Math.random() * 0.3 + 0.05;
-      if (key === predictedKey) {
-        confidence = Math.random() * 0.25 + 0.70;
+    let predictionResult;
+    let isSimulation = true;
+    
+    if (activeModel && activeModel.modelPath) {
+      try {
+        const imagePath = path.join(UPLOADS_DIR, req.file.filename);
+        predictionResult = await predictWithModel(imagePath, {
+          modelPath: activeModel.modelPath,
+          labelsPath: activeModel.labelsPath || '',
+          classes: activeModel.classes || [],
+          classIndices: activeModel.classIndices || {},
+          inputShape: activeModel.inputShape || [224, 224, 3]
+        });
+        isSimulation = predictionResult.isSimulation;
+      } catch (err) {
+        console.error('Model prediction error, falling back to simulation:', err);
+        predictionResult = null;
       }
-      return {
-        class: key,
-        className: ICE_MATERIALS[key].name,
-        confidence
-      };
-    });
+    }
+    
+    let predictions;
+    let topPrediction;
+    let predictedKey: string;
+    
+    if (predictionResult && !predictionResult.isSimulation) {
+      predictions = predictionResult.predictions;
+      topPrediction = predictionResult.topPrediction;
+      predictedKey = topPrediction.class;
+    } else {
+      const randomIndex = Math.floor(Math.random() * MATERIAL_KEYS.length);
+      predictedKey = MATERIAL_KEYS[randomIndex];
 
-    const totalConfidence = predictions.reduce((sum, p) => sum + p.confidence, 0);
-    predictions.forEach(p => p.confidence = p.confidence / totalConfidence);
-    predictions.sort((a, b) => b.confidence - a.confidence);
+      predictions = MATERIAL_KEYS.map((key) => {
+        let confidence = Math.random() * 0.3 + 0.05;
+        if (key === predictedKey) {
+          confidence = Math.random() * 0.25 + 0.70;
+        }
+        return {
+          class: key,
+          className: ICE_MATERIALS[key].name,
+          confidence
+        };
+      });
 
-    const topPrediction = predictions[0];
+      const totalConfidence = predictions.reduce((sum, p) => sum + p.confidence, 0);
+      predictions.forEach(p => p.confidence = p.confidence / totalConfidence);
+      predictions.sort((a, b) => b.confidence - a.confidence);
+
+      topPrediction = predictions[0];
+    }
+    
+    const material = ICE_MATERIALS[predictedKey] || ICE_MATERIALS['concrete'];
 
     const boundingBox = {
       x: Math.floor(Math.random() * 50) + 50,
@@ -325,7 +357,7 @@ router.post('/predict', optionalAuthMiddleware, upload.single('image'), async (r
         confidence: topPrediction.confidence,
         modelName: scanData.modelName,
         boundingBox,
-        isSimulation: !activeModel
+        isSimulation: isSimulation
       },
       isGuest,
       scansRemaining: isGuest ? 3 - (await Scan.countDocuments({ guestToken })) : null
