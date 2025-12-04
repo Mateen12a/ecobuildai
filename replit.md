@@ -138,3 +138,10 @@ Preferred communication style: Simple, everyday language.
 - MLStudio-main: ML training, testing, and model syncing
 
 **Scan History Data Fix**: Updated `scan-history.tsx` to correctly handle the API response structure with nested `prediction` and `material` objects, including defensive null checks for robust error handling.
+
+**MLStudio Sync to EcoBuild** (December 4, 2025): Added model sync functionality to MLStudio:
+- Added POST `/api/models/:id/sync` endpoint to MLStudio server that writes trained models directly to EcoBuild's MongoDB `mlmodels` collection
+- Added GET `/api/models/:id/sync-status` endpoint to check if a model has been synced and if it's active in EcoBuild
+- Added "Sync to EcoBuild" button in MLStudio Models page UI with sync status indicators
+- Models can be activated during sync or activated later from EcoBuild's Models page
+- Both applications share the same MongoDB database (Construction_test) for seamless integration
