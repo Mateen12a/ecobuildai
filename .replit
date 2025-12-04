@@ -22,31 +22,35 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Start application"
+args = "MLStudio"
 
 [[workflows.workflow]]
-name = "Start application"
+name = "MLStudio"
 author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd MLStudio-main && npm run dev"
+waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "webview"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run dev"
-waitForPort = 5000
+[[ports]]
+localPort = 3001
+externalPort = 3001
 
 [[ports]]
 localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 38105
+localPort = 5001
 externalPort = 3000
 
 [[ports]]
-localPort = 43159
-externalPort = 3001
+localPort = 40433
+externalPort = 3002
 
 [deployment]
 deploymentTarget = "autoscale"

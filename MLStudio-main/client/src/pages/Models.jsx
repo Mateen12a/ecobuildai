@@ -9,13 +9,18 @@ import {
   Target,
   TrendingUp,
   AlertTriangle,
-  RefreshCw
+  RefreshCw,
+  Upload,
+  ExternalLink,
+  Cloud
 } from 'lucide-react';
 
 function Models() {
   const [models, setModels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(null);
+  const [syncing, setSyncing] = useState(null);
+  const [syncStatus, setSyncStatus] = useState({});
 
   useEffect(() => {
     fetchModels();
@@ -26,10 +31,55 @@ function Models() {
       const response = await fetch('/api/models');
       const data = await response.json();
       setModels(data);
+      
+      for (const model of data) {
+        if (model.status === 'completed') {
+          fetchSyncStatus(model.id);
+        }
+      }
     } catch (error) {
       console.error('Error fetching models:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSyncStatus = async (modelId) => {
+    try {
+      const response = await fetch(`/api/models/${modelId}/sync-status`);
+      const data = await response.json();
+      setSyncStatus(prev => ({ ...prev, [modelId]: data }));
+    } catch (error) {
+      console.error('Error fetching sync status:', error);
+    }
+  };
+
+  const syncToEcoBuild = async (modelId) => {
+    if (!confirm('Sync this model to EcoBuild? This will make it available for material detection in the main app.')) {
+      return;
+    }
+
+    setSyncing(modelId);
+    try {
+      const response = await fetch(`/api/models/${modelId}/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activate: true })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert(`Model synced successfully to EcoBuild!\n\nVersion: ${data.version}\nStatus: ${data.isActive ? 'Active' : 'Ready'}`);
+        fetchSyncStatus(modelId);
+      } else {
+        alert(data.error || 'Failed to sync model');
+      }
+    } catch (error) {
+      console.error('Error syncing model:', error);
+      alert('Failed to sync model to EcoBuild');
+    } finally {
+      setSyncing(null);
     }
   };
 
@@ -238,13 +288,53 @@ function Models() {
                       )}
                     </div>
                   )}
+                  
+                  {syncStatus[model.id]?.synced && (
+                    <div style={{ 
+                      marginTop: '8px', 
+                      padding: '6px 10px', 
+                      background: 'rgba(59, 130, 246, 0.1)', 
+                      borderRadius: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '12px'
+                    }}>
+                      <ExternalLink size={12} color="#3b82f6" />
+                      <span style={{ color: '#3b82f6' }}>
+                        Synced to EcoBuild ({syncStatus[model.id].version})
+                        {syncStatus[model.id].isActive && (
+                          <span className="badge badge-success" style={{ marginLeft: '6px', fontSize: '10px' }}>
+                            Active in EcoBuild
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="model-actions">
+                  {model.status === 'completed' && (
+                    <button 
+                      className="btn btn-primary btn-sm"
+                      onClick={() => syncToEcoBuild(model.id)}
+                      disabled={syncing === model.id}
+                      title={syncStatus[model.id]?.synced ? 'Re-sync to EcoBuild' : 'Sync to EcoBuild'}
+                      data-testid={`button-sync-model-${model.id}`}
+                    >
+                      {syncing === model.id ? (
+                        <RefreshCw size={14} className="spinning" />
+                      ) : (
+                        <Cloud size={14} />
+                      )}
+                      {syncStatus[model.id]?.synced ? 'Re-sync' : 'Sync to EcoBuild'}
+                    </button>
+                  )}
                   {!model.isActive && model.status === 'completed' && (
                     <button 
                       className="btn btn-success btn-sm"
                       onClick={() => activateModel(model.id)}
+                      data-testid={`button-activate-model-${model.id}`}
                     >
                       <CheckCircle size={14} />
                       Activate
@@ -254,6 +344,7 @@ function Models() {
                     className="btn btn-danger btn-sm"
                     onClick={() => deleteModel(model.id, model.isActive)}
                     disabled={deleting === model.id}
+                    data-testid={`button-delete-model-${model.id}`}
                   >
                     {deleting === model.id ? (
                       <RefreshCw size={14} className="spinning" />

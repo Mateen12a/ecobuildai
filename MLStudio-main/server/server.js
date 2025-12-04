@@ -24,7 +24,7 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://mateen:mateen@cluster0.ydjp5.mongodb.net/Construction_test?retryWrites=true&w=majority";
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
+const DATA_DIR = path.join(__dirname, 'data');
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 const TEMP_DIR = path.join(DATA_DIR, 'temp');
 const MODELS_DIR = path.join(DATA_DIR, 'models');
@@ -790,6 +790,150 @@ app.post('/api/corrections', async (req, res) => {
     res.json({ success: true, message: 'Correction saved. Re-train for improved accuracy.' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to save correction' });
+  }
+});
+
+app.post('/api/models/:id/sync', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { activate = true } = req.body;
+    
+    const model = await TrainedModel.findOne({ modelId: id });
+    if (!model) {
+      return res.status(404).json({ error: 'Model not found' });
+    }
+    
+    if (model.status !== 'completed') {
+      return res.status(400).json({ error: 'Only completed models can be synced' });
+    }
+    
+    const modelDir = path.join(MODELS_DIR, id);
+    const metadataPath = path.join(modelDir, 'metadata.json');
+    const modelPath = fs.existsSync(path.join(modelDir, 'model.keras')) 
+      ? path.join(modelDir, 'model.keras')
+      : path.join(modelDir, 'best_model.keras');
+    const labelsPath = path.join(modelDir, 'labels.json');
+    
+    if (!fs.existsSync(modelPath)) {
+      return res.status(400).json({ error: 'Model file not found. Training may not have completed properly.' });
+    }
+    
+    let metadata = {};
+    if (fs.existsSync(metadataPath)) {
+      metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+    }
+    
+    const version = `v${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12)}`;
+    
+    let classIndicesObj = {};
+    if (model.classLabels) {
+      if (model.classLabels instanceof Map) {
+        classIndicesObj = Object.fromEntries(model.classLabels);
+      } else if (typeof model.classLabels === 'object') {
+        classIndicesObj = { ...model.classLabels };
+      }
+    } else if (metadata.class_indices) {
+      classIndicesObj = metadata.class_indices;
+    }
+    
+    const mlModelDoc = {
+      name: 'EcoBuild Material Detector',
+      version: version,
+      description: `Trained on ${model.samplesUsed || 0} samples, ${model.classes?.length || 0} material classes`,
+      status: 'ready',
+      accuracy: model.metrics?.valAccuracy || metadata.final_val_accuracy || 0,
+      precision: metadata.precision || 0,
+      recall: metadata.recall || 0,
+      f1Score: metadata.f1_score || 0,
+      totalSamples: model.samplesUsed || metadata.original_samples || 0,
+      epochs: model.config?.epochs || metadata.epochs_trained || 0,
+      trainingTime: 0,
+      modelPath: path.resolve(modelPath),
+      labelsPath: path.resolve(labelsPath),
+      classes: model.classes || metadata.classes || [],
+      classIndices: classIndicesObj,
+      inputShape: metadata.input_shape || [224, 224, 3],
+      architecture: metadata.model_architecture || 'EfficientNetB0',
+      mlstudioModelId: id,
+      isActive: false,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    const ecobuildDb = mongoose.connection.useDb('Construction_test');
+    const MLModels = ecobuildDb.collection('mlmodels');
+    
+    const existing = await MLModels.findOne({ mlstudioModelId: id });
+    let mongoId;
+    
+    if (existing) {
+      await MLModels.updateOne(
+        { mlstudioModelId: id },
+        { $set: { ...mlModelDoc, updatedAt: new Date() } }
+      );
+      mongoId = existing._id;
+      console.log(`Updated existing model entry: ${mongoId}`);
+    } else {
+      const result = await MLModels.insertOne(mlModelDoc);
+      mongoId = result.insertedId;
+      console.log(`Created new model entry: ${mongoId}`);
+    }
+    
+    if (activate) {
+      await MLModels.updateMany(
+        { _id: { $ne: mongoId } },
+        { $set: { isActive: false } }
+      );
+      await MLModels.updateOne(
+        { _id: mongoId },
+        { $set: { isActive: true } }
+      );
+    }
+    
+    const syncedModel = await MLModels.findOne({ _id: mongoId });
+    
+    broadcast({ 
+      type: 'model_synced', 
+      modelId: id, 
+      ecobuildId: mongoId.toString(),
+      activated: activate 
+    });
+    
+    res.json({ 
+      success: true, 
+      message: `Model synced to EcoBuild${activate ? ' and activated' : ''}`,
+      ecobuildModelId: mongoId.toString(),
+      version: version,
+      isActive: activate
+    });
+  } catch (error) {
+    console.error('Error syncing model:', error);
+    res.status(500).json({ error: 'Failed to sync model to EcoBuild: ' + error.message });
+  }
+});
+
+app.get('/api/models/:id/sync-status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const ecobuildDb = mongoose.connection.useDb('Construction_test');
+    const MLModels = ecobuildDb.collection('mlmodels');
+    
+    const syncedModel = await MLModels.findOne({ mlstudioModelId: id });
+    
+    if (syncedModel) {
+      res.json({
+        synced: true,
+        ecobuildId: syncedModel._id.toString(),
+        version: syncedModel.version,
+        isActive: syncedModel.isActive,
+        syncedAt: syncedModel.updatedAt
+      });
+    } else {
+      res.json({ synced: false });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to check sync status' });
   }
 });
 
