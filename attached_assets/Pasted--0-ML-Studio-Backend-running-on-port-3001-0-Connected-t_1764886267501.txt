@@ -1,0 +1,71 @@
+ 
+[0] ML Studio Backend running on port 3001
+[0] Connected to MongoDB Atlas
+[1] 9:51:36 PM [vite] (client) Re-optimizing dependencies because lockfile has changed
+[1] 
+[1]   VITE v7.2.6  ready in 528 ms
+[1] 
+[1]   ➜  Local:   http://localhost:5000/
+[1]   ➜  Network: http://172.31.122.98:5000/
+[0] node:events:502
+[0]       throw er; // Unhandled 'error' event
+[0]       ^
+[0] 
+[0] Error: spawn /home/runner/workspace/MLStudio-main/worker/tfenv/bin/python ENOENT
+[0]     at ChildProcess._handle.onexit (node:internal/child_process:285:19)
+[0]     at onErrorNT (node:internal/child_process:483:16)
+[0]     at process.processTicksAndRejections (node:internal/process/task_queues:82:21)
+[0] Emitted 'error' event on ChildProcess instance at:
+[0]     at ChildProcess._handle.onexit (node:internal/child_process:291:12)
+[0]     at onErrorNT (node:internal/child_process:483:16)
+[0]     at process.processTicksAndRejections (node:internal/process/task_queues:82:21) {
+[0]   errno: -2,
+[0]   code: 'ENOENT',
+[0]   syscall: 'spawn /home/runner/workspace/MLStudio-main/worker/tfenv/bin/python',
+[0]   path: '/home/runner/workspace/MLStudio-main/worker/tfenv/bin/python',
+[0]   spawnargs: [
+[0]     '/home/runner/workspace/MLStudio-main/worker/train.py',
+[0]     '--model-id',
+[0]     'model-1764885926060',
+[0]     '--mongo-uri',
+[0]     'mongodb+srv://mateen:mateen@cluster0.ydjp5.mongodb.net/Construction_test?retryWrites=true&w=majority',
+[0]     '--epochs',
+[0]     '15',
+[0]     '--batch-size',
+[0]     '16',
+[0]     '--learning-rate',
+[0]     '0.0001',
+[0]     '--validation-split',
+[0]     '0.2',
+[0]     '--enable-segmentation',
+[0]     'false'
+[0]   ]
+[0] }
+[0] 
+[0] Node.js v20.19.3
+[0] npm run server exited with code 1
+[1] 10:05:29 PM [vite] http proxy error: /api/models
+[1] Error: connect ECONNREFUSED 127.0.0.1:3001
+[1]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[1] 10:05:30 PM [vite] ws proxy error:
+[1] Error: connect ECONNREFUSED 127.0.0.1:3001
+[1]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[1] 10:05:30 PM [vite] ws proxy error:
+[1] Error: connect ECONNREFUSED 127.0.0.1:3001
+[1]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[1] 10:05:30 PM [vite] ws proxy error:
+[1] Error: connect ECONNREFUSED 127.0.0.1:3001
+[1]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[1] 10:05:30 PM [vite] ws proxy error:
+[1] Error: connect ECONNREFUSED 127.0.0.1:3001
+[1]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[1] 10:05:30 PM [vite] http proxy error: /api/models
+[1] Error: connect ECONNREFUSED 127.0.0.1:3001
+[1]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[1] 10:05:30 PM [vite] ws proxy error:
+[1] Error: connect ECONNREFUSED 127.0.0.1:3001
+[1]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[1] 10:05:30 PM [vite] ws proxy error:
+[1] Error: connect ECONNREFUSED 127.0.0.1:3001
+[1]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)
+[1] 10:05:30 PM [vite] ws proxy error:
