@@ -11,15 +11,32 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { AlertTriangle, Leaf, TrendingDown } from "lucide-react";
 import { motion } from "framer-motion";
+import type { ScanResult } from '@/lib/api';
 
-const data = [
-  { name: 'Standard Concrete', carbon: 400, color: '#ef4444' }, // Red
-  { name: 'Hempcrete', carbon: 120, color: '#16a34a' }, // Green
-  { name: 'Recycled Steel', carbon: 250, color: '#eab308' }, // Yellow
-  { name: 'Bamboo', carbon: 80, color: '#16a34a' }, // Green
-];
+export function CarbonStats({ scanResult }: { scanResult?: ScanResult | null }) {
+  let data = [
+    { name: 'Standard Concrete', carbon: 400, color: '#ef4444' }, // Red
+    { name: 'Hempcrete', carbon: 120, color: '#16a34a' }, // Green
+    { name: 'Recycled Steel', carbon: 250, color: '#eab308' }, // Yellow
+    { name: 'Bamboo', carbon: 80, color: '#16a34a' }, // Green
+  ];
 
-export function CarbonStats() {
+  if (scanResult && scanResult.material) {
+    const scanned = {
+      name: scanResult.material.name,
+      carbon: scanResult.material.embodiedCarbon || 0,
+      color: '#ef4444',
+    };
+
+    const alts = (scanResult.material.alternatives || []).map((a: any) => ({
+      name: a.name,
+      carbon: a.embodiedCarbon || 0,
+      color: a.embodiedCarbon <= scanned.carbon ? '#16a34a' : '#eab308'
+    }));
+
+    data = [scanned, ...alts].slice(0, 6);
+  }
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <motion.div 
@@ -53,7 +70,7 @@ export function CarbonStats() {
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                 />
                 <Bar dataKey="carbon" radius={[0, 4, 4, 0]} barSize={30}>
-                  {data.map((entry, index) => (
+                  {data.map((entry: any, index: number) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Bar>

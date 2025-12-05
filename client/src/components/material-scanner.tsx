@@ -424,6 +424,35 @@ export function MaterialScanner({ onScanComplete, showGuestPrompt = true }: Mate
               </Button>
             </div>
 
+            {/* Compact Detected Properties (matches landing) */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-card rounded-lg p-4 shadow-sm border border-border mb-4"
+            >
+              <h4 className="font-semibold mb-3">Detected Properties</h4>
+              <ul className="space-y-2 text-sm">
+                <li className="flex justify-between text-muted-foreground">
+                  <span>Material Type</span>
+                  <span className="font-medium">{scanResult.material.name}</span>
+                </li>
+                <li className="flex justify-between text-muted-foreground">
+                  <span>Density</span>
+                  <span className="font-medium">{scanResult.material.density} kg/m³</span>
+                </li>
+                <li className="flex justify-between text-muted-foreground">
+                  <span>Thermal Conductivity</span>
+                  <span className="font-medium">{scanResult.material.thermalConductivity ?? '—'}</span>
+                </li>
+                <li className="flex justify-between text-muted-foreground">
+                  <span>Embodied Carbon</span>
+                  <span className={`font-medium ${scanResult.material.embodiedCarbon > 200 ? 'text-destructive' : scanResult.material.embodiedCarbon > 100 ? 'text-amber-600' : 'text-green-600'}`}>
+                    {scanResult.material.embodiedCarbon} kgCO2e/kg
+                  </span>
+                </li>
+              </ul>
+            </motion.div>
+
             <Tabs value={activeView} onValueChange={(v) => setActiveView(v as any)} className="flex-1 flex flex-col">
               <TabsList className="grid grid-cols-3 w-full max-w-sm mx-auto mb-4">
                 <TabsTrigger value="preview" className="gap-2" data-testid="tab-preview">
@@ -441,6 +470,15 @@ export function MaterialScanner({ onScanComplete, showGuestPrompt = true }: Mate
                 <div className="aspect-video bg-secondary rounded-lg overflow-hidden mb-4">
                   {previewUrl && <img src={previewUrl} alt="Scanned material" className="w-full h-full object-cover" />}
                 </div>
+                {/* Model name / source */}
+                {scanResult && (
+                  <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
+                    <div>Model: <span className="font-medium text-foreground">{scanResult.analysis?.modelName || 'ML Model'}</span></div>
+                    {scanResult.analysis?.isSimulation && (
+                      <div className="text-xs bg-secondary/20 px-2 py-1 rounded">Simulation</div>
+                    )}
+                  </div>
+                )}
               </TabsContent>
 
               <TabsContent value="wireframe" className="flex-1">

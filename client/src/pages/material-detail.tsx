@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import sampleImg1 from '@assets/generated_images/hempcrete_texture.png';
+import sampleImg2 from '@assets/generated_images/recycled_steel_texture.png';
 import { Link, useRoute } from "wouter";
 import { ArrowLeft, Leaf, BarChart3, Share2, Download, Info, AlertTriangle, Loader2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -180,6 +182,35 @@ export default function MaterialDetail() {
                     </div>
                   </CardContent>
                 </Card>
+                {/* Image gallery: show up to 10 images when available (fall back to nothing) */}
+                {(() => {
+                  const images: string[] = (material as any).images && (material as any).images.length > 0
+                    ? (material as any).images.slice(0, 10)
+                    : (material.name && material.name.toLowerCase().includes('hemp'))
+                      ? Array.from({ length: 10 }).map((_, i) => sampleImg1)
+                      : (material.name && material.name.toLowerCase().includes('steel'))
+                        ? Array.from({ length: 10 }).map((_, i) => sampleImg2)
+                        : [];
+
+                  if (images.length === 0) return null;
+
+                  return (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Image Gallery</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                          {images.map((src, i) => (
+                            <div key={i} className="h-24 bg-gray-100 overflow-hidden rounded">
+                              <img src={src} alt={`${material.name} ${i+1}`} className="w-full h-full object-cover" />
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })()}
               </TabsContent>
 
               <TabsContent value="environmental" className="space-y-6">

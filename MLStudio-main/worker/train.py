@@ -50,16 +50,34 @@ class TrainingCallback(keras.callbacks.Callback):
     def __init__(self, total_epochs):
         super().__init__()
         self.total_epochs = total_epochs
+        self.global_epoch = 0
+        self.steps_per_epoch = None
         self.current_phase_epoch = 0
 
     def on_epoch_begin(self, epoch, logs=None):
         self.current_phase_epoch = epoch
         log_message(f"Starting epoch {epoch + 1}/{self.total_epochs}")
 
+    def on_train_begin(self, logs=None):
+        # try to discover steps per epoch (Keras provides in params)
+        try:
+            params = getattr(self, 'params', {})
+            steps = params.get('steps') or params.get('samples')
+            if steps and params.get('batch_size'):
+                # if samples provided, compute steps
+                if not params.get('steps') and params.get('samples'):
+                    self.steps_per_epoch = max(1, int(params.get('samples') / params.get('batch_size')))
+                else:
+                    self.steps_per_epoch = params.get('steps')
+        except Exception:
+            self.steps_per_epoch = None
+
     def on_epoch_end(self, epoch, logs=None):
         logs = logs or {}
+        # increment global epoch counter and emit global epoch index
+        self.global_epoch += 1
         log_event("epoch_end",
-                  epoch=epoch + 1,
+                  epoch=self.global_epoch,
                   total_epochs=self.total_epochs,
                   loss=float(logs.get('loss', 0)),
                   accuracy=float(logs.get('accuracy', 0)),
@@ -69,8 +87,11 @@ class TrainingCallback(keras.callbacks.Callback):
     def on_batch_end(self, batch, logs=None):
         if batch % 10 == 0:
             logs = logs or {}
+            # batch index here is zero-based within current epoch; compute and report progress
             log_event("batch_end",
-                      batch=batch,
+                      batch=int(batch),
+                      steps_per_epoch=int(self.steps_per_epoch) if self.steps_per_epoch else None,
+                      epoch=(self.global_epoch + 1),
                       loss=float(logs.get('loss', 0)),
                       accuracy=float(logs.get('accuracy', 0)))
 

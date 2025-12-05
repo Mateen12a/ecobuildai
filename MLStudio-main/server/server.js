@@ -4,7 +4,7 @@ import multer from 'multer';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { v4 as uuidv4 } from 'uuid';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -19,6 +19,27 @@ import { searchImages, downloadImage } from './services/imageSearch.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Load .env file if present (for local development with custom PYTHON path)
+try {
+  const envPath = path.join(__dirname, '.env');
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf-8');
+    envContent.split('\n').forEach(line => {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        const [key, ...valueParts] = trimmed.split('=');
+        if (key && valueParts.length > 0) {
+          const value = valueParts.join('=').trim().replace(/^["']|["']$/g, '');
+          process.env[key.trim()] = value;
+        }
+      }
+    });
+    console.log(`✓ Loaded environment from .env file`);
+  }
+} catch (err) {
+  console.log(`Note: No .env file found in ${__dirname}`);
+}
 
 const app = express();
 const server = createServer(app);
@@ -65,7 +86,7 @@ wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'connected', message: 'Connected to ML Studio' }));
   
   if (currentTraining) {
-    ws.send(JSON.stringify({ type: 'training_status', status: 'running', runId: currentTraining.runId }));
+    ws.send(JSON.stringify({ type: 'training_status', status: 'running', runId: currentTraining.runId, modelId: currentTraining.modelId }));
   }
   
   ws.on('close', () => wsClients.delete(ws));
@@ -475,11 +496,73 @@ app.delete('/api/models/:id', async (req, res) => {
   }
 });
 
-const isWindows = process.platform === 'win32';
-const venvPath = path.join(__dirname, '..', 'worker', 'tfenv'); 
-const pythonExecutable = isWindows 
+function resolvePythonExecutable() {
+  const isWindows = process.platform === 'win32';
+  const venvPath = path.join(__dirname, '..', 'worker', 'tfenv');
+  const venvPython = isWindows
     ? path.join(venvPath, 'Scripts', 'python.exe')
     : path.join(venvPath, 'bin', 'python');
+
+  // PRIORITY 1: Check if the venv python exists and is valid
+  if (fs.existsSync(venvPython)) {
+    try {
+      const verRes = spawnSync(venvPython, ['--version'], { timeout: 2000, stdio: 'pipe' });
+      const verOut = (verRes.stdout || Buffer.from('')).toString() + (verRes.stderr || Buffer.from('')).toString();
+      // Check if it's a valid python (not a shim/wrapper error)
+      if (verRes.status === 0 || (verOut && /Python|python/.test(verOut))) {
+        console.log(`✓ Valid venv python found at: ${venvPython}`);
+        return venvPython;
+      }
+    } catch (e) {
+      console.error(`✗ Venv python exists but failed version check: ${e.message}`);
+    }
+  } else {
+    console.warn(`⚠ Venv python not found at: ${venvPython}`);
+  }
+
+  // PRIORITY 2: Honour explicit env override
+  if (process.env.PYTHON) {
+    if (fs.existsSync(process.env.PYTHON)) {
+      console.log(`✓ Using PYTHON env override: ${process.env.PYTHON}`);
+      return process.env.PYTHON;
+    } else {
+      console.warn(`⚠ PYTHON env set but file not found: ${process.env.PYTHON}`);
+    }
+  }
+
+  // PRIORITY 3: Only as last resort, try system python (but warn user)
+  console.warn(`⚠ Venv not available, attempting system python (not recommended)`);
+  try {
+    const whichCmd = isWindows ? 'where' : 'which';
+    const whichResult = spawnSync(whichCmd, ['python'], { timeout: 2000 });
+    if (whichResult.status === 0) {
+      const out = whichResult.stdout.toString().split(/\r?\n/).find(Boolean);
+      if (out && out.length) {
+        console.log(`Found system python: ${out.trim()}`);
+        return out.trim();
+      }
+    }
+
+    // try python3 as a fallback
+    const whichResult3 = spawnSync(whichCmd, ['python3'], { timeout: 2000 });
+    if (whichResult3.status === 0) {
+      const out3 = whichResult3.stdout.toString().split(/\r?\n/).find(Boolean);
+      if (out3 && out3.length) {
+        console.log(`Found system python3: ${out3.trim()}`);
+        return out3.trim();
+      }
+    }
+  } catch (e) {
+    console.error(`Error searching PATH for python: ${e.message}`);
+  }
+
+  // Last resort: return venv python path so error messages show what was attempted
+  console.error(`✗ No valid Python found! Returning venv path as fallback: ${venvPython}`);
+  return venvPython;
+}
+
+const pythonExecutable = resolvePythonExecutable();
+console.log(`Resolved python executable: ${pythonExecutable}`);
 app.post('/api/training/start', async (req, res) => {
   if (currentTraining) {
     return res.status(400).json({ error: 'Training already in progress' });
@@ -527,12 +610,13 @@ app.post('/api/training/start', async (req, res) => {
       samplesUsed: totalSamples
     });
     
+    const totalEpochs = epochs + Math.max(10, Math.floor(epochs / 2));
     currentTraining = { runId, modelId, process: null };
-    broadcast({ type: 'training_started', runId, modelId });
+    broadcast({ type: 'training_started', runId, modelId, total_epochs: totalEpochs });
     
     const pythonScript = path.join(__dirname, '..', 'worker', 'train.py');
-    
-    const trainProcess = spawn(pythonExecutable, [
+
+    const args = [
       pythonScript,
       '--model-id', modelId,
       '--mongo-uri', MONGO_URI,
@@ -541,47 +625,63 @@ app.post('/api/training/start', async (req, res) => {
       '--learning-rate', learningRate.toString(),
       '--validation-split', validationSplit.toString(),
       '--enable-segmentation', enableSegmentation.toString()
-    ]);
-    
-    currentTraining.process = trainProcess;
-    
-    trainProcess.stdout.on('data', (data) => {
-      const lines = data.toString().split('\n').filter(l => l.trim());
-      lines.forEach(async (line) => {
-        try {
-          const event = JSON.parse(line);
-          await handleTrainingEvent(modelId, event);
-        } catch (e) {
-          broadcast({ type: 'training_log', runId, message: line });
-        }
+    ];
+
+    function attachTrainListeners(proc) {
+      currentTraining.process = proc;
+
+      proc.stdout.on('data', (data) => {
+        const lines = data.toString().split('\n').filter(l => l.trim());
+        lines.forEach(async (line) => {
+          try {
+            const event = JSON.parse(line);
+            await handleTrainingEvent(modelId, event);
+          } catch (e) {
+            broadcast({ type: 'training_log', runId, message: line });
+          }
+        });
       });
-    });
-    
-    trainProcess.stderr.on('data', (data) => {
-      const message = data.toString();
-      console.error('Training stderr:', message);
-      broadcast({ type: 'training_log', runId, message, level: 'error' });
-    });
-    
-    trainProcess.on('close', async (code) => {
-      const status = code === 0 ? 'completed' : 'failed';
-      
-      await TrainedModel.findOneAndUpdate(
-        { modelId },
-        { 
-          status, 
-          completedAt: new Date(),
-          isActive: code === 0 
+
+      proc.stderr.on('data', (data) => {
+        const message = data.toString();
+        console.error('Training stderr:', message);
+        broadcast({ type: 'training_log', runId, message, level: 'error' });
+      });
+
+      proc.on('close', async (code) => {
+        const status = code === 0 ? 'completed' : 'failed';
+
+        await TrainedModel.findOneAndUpdate(
+          { modelId },
+          { 
+            status, 
+            completedAt: new Date(),
+            isActive: code === 0 
+          }
+        );
+
+        if (code === 0) {
+          await TrainedModel.updateMany({ modelId: { $ne: modelId } }, { isActive: false });
         }
-      );
-      
-      if (code === 0) {
-        await TrainedModel.updateMany({ modelId: { $ne: modelId } }, { isActive: false });
-      }
-      
-      broadcast({ type: 'training_completed', runId, modelId, exitCode: code, status });
+
+        broadcast({ type: 'training_completed', runId, modelId, exitCode: code, status });
+        currentTraining = null;
+      });
+    }
+
+    // Use ONLY the resolved python (venv), no fallbacks to system python
+    console.log(`Training: Using Python executable: ${pythonExecutable}`);
+    broadcast({ type: 'training_log', runId, message: `Starting training with Python: ${pythonExecutable}` });
+
+    try {
+      const trainProcess = spawn(pythonExecutable, args);
+      attachTrainListeners(trainProcess);
+    } catch (err) {
+      console.error(`Failed to spawn Python training process:`, err.message);
+      await TrainedModel.findOneAndUpdate({ modelId }, { status: 'failed', completedAt: new Date() });
+      broadcast({ type: 'training_log', runId, message: `Failed to start training: ${err.message}`, level: 'error' });
       currentTraining = null;
-    });
+    }
     
     res.json({ runId, modelId, status: 'started' });
   } catch (error) {
@@ -591,6 +691,7 @@ app.post('/api/training/start', async (req, res) => {
 });
 
 async function handleTrainingEvent(modelId, event) {
+  const runId = currentTraining && currentTraining.modelId === modelId ? currentTraining.runId : undefined;
   switch (event.type) {
     case 'epoch_end':
       await TrainedModel.findOneAndUpdate(
@@ -610,24 +711,24 @@ async function handleTrainingEvent(modelId, event) {
           }
         }
       );
-      broadcast({ type: 'training_progress', modelId, ...event });
+      broadcast({ type: 'training_progress', runId, modelId, ...event });
       break;
     case 'batch_end':
-      broadcast({ type: 'training_batch', modelId, ...event });
+      broadcast({ type: 'training_batch', runId, modelId, ...event });
       break;
     case 'log':
       await TrainedModel.findOneAndUpdate(
         { modelId },
         { $push: { logs: { message: event.message, level: event.level || 'info' } } }
       );
-      broadcast({ type: 'training_log', modelId, message: event.message, level: event.level });
+      broadcast({ type: 'training_log', runId, modelId, message: event.message, level: event.level });
       break;
     case 'confusion_matrix':
       await TrainedModel.findOneAndUpdate(
         { modelId },
         { $set: { 'metrics.confusionMatrix': event.matrix } }
       );
-      broadcast({ type: 'confusion_matrix', modelId, matrix: event.matrix });
+      broadcast({ type: 'confusion_matrix', runId, modelId, matrix: event.matrix });
       break;
   }
 }

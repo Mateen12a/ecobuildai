@@ -4,6 +4,7 @@ import { CarbonStats } from "@/components/carbon-stats";
 import { AlternativesGrid } from "@/components/alternatives";
 import heroImage from "@assets/generated_images/hero_image_for_sustainable_construction_app.png";
 import { motion } from "framer-motion";
+import type { ScanResult } from "@/lib/api";
 import { Sprout, Building2, BarChart3, Menu, Scan, Leaf, LogIn, ArrowRight, Quote, Star, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,10 +22,12 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 export default function Landing() {
   const [hasScanned, setHasScanned] = useState(false);
   const [scanCount, setScanCount] = useState(0);
+  const [lastScanResult, setLastScanResult] = useState<ScanResult | null>(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [_, setLocation] = useLocation();
 
-  const handleScanComplete = () => {
+  const handleScanComplete = (result?: ScanResult) => {
+    if (result) setLastScanResult(result);
     if (scanCount >= 2) { // 0, 1, 2 = 3 tries
       setHasScanned(true);
       setScanCount(prev => prev + 1);
@@ -156,24 +159,31 @@ export default function Landing() {
                   className="bg-card rounded-lg p-6 shadow-sm border border-border"
                 >
                   <h3 className="font-bold font-display text-lg mb-4">Detected Properties</h3>
-                  <ul className="space-y-3 text-sm">
-                    <li className="flex justify-between py-2 border-b border-border/50 hover:bg-secondary/10 px-2 rounded transition-colors cursor-default group">
-                      <span className="text-muted-foreground">Material Type</span>
-                      <span className="font-medium group-hover:text-primary transition-colors">Concrete (C25/30)</span>
-                    </li>
-                    <li className="flex justify-between py-2 border-b border-border/50 hover:bg-secondary/10 px-2 rounded transition-colors cursor-default group">
-                      <span className="text-muted-foreground">Density</span>
-                      <span className="font-medium group-hover:text-primary transition-colors">2400 kg/m³</span>
-                    </li>
-                    <li className="flex justify-between py-2 border-b border-border/50 hover:bg-secondary/10 px-2 rounded transition-colors cursor-default group">
-                      <span className="text-muted-foreground">Thermal Conductivity</span>
-                      <span className="font-medium group-hover:text-primary transition-colors">1.7 W/mK</span>
-                    </li>
-                    <li className="flex justify-between pt-2 hover:shadow-md p-2 rounded transition-all">
-                      <span className="text-muted-foreground">Embodied Carbon</span>
-                      <span className="font-medium text-destructive flex items-center gap-1">High <AlertTriangleIcon className="w-4 h-4" /></span>
-                    </li>
-                  </ul>
+                  {lastScanResult ? (
+                    <ul className="space-y-3 text-sm">
+                      <li className="flex justify-between py-2 border-b border-border/50 hover:bg-secondary/10 px-2 rounded transition-colors cursor-default group">
+                        <span className="text-muted-foreground">Material Type</span>
+                        <span className="font-medium group-hover:text-primary transition-colors">{lastScanResult.material.name}</span>
+                      </li>
+                      <li className="flex justify-between py-2 border-b border-border/50 hover:bg-secondary/10 px-2 rounded transition-colors cursor-default group">
+                        <span className="text-muted-foreground">Density</span>
+                        <span className="font-medium group-hover:text-primary transition-colors">{lastScanResult.material.density} kg/m³</span>
+                      </li>
+                      <li className="flex justify-between py-2 border-b border-border/50 hover:bg-secondary/10 px-2 rounded transition-colors cursor-default group">
+                        <span className="text-muted-foreground">Thermal Conductivity</span>
+                        <span className="font-medium group-hover:text-primary transition-colors">{lastScanResult.material.thermalConductivity ?? '—'}</span>
+                      </li>
+                      <li className="flex justify-between pt-2 hover:shadow-md p-2 rounded transition-all">
+                        <span className="text-muted-foreground">Embodied Carbon</span>
+                        <span className={`font-medium flex items-center gap-1 ${lastScanResult.material.embodiedCarbon > 200 ? 'text-destructive' : lastScanResult.material.embodiedCarbon > 100 ? 'text-amber-600' : 'text-green-600'}`}>
+                          {lastScanResult.material.embodiedCarbon} kgCO2e/kg
+                          {lastScanResult.material.embodiedCarbon > 200 && <AlertTriangleIcon className="w-4 h-4" />}
+                        </span>
+                      </li>
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Scan complete — opening detailed results.</p>
+                  )}
                 </motion.div>
               )}
             </div>
@@ -187,9 +197,9 @@ export default function Landing() {
                     className="space-y-8"
                     >
                     <div className="hover:scale-[1.01] transition-transform duration-300">
-                         <CarbonStats />
+                      <CarbonStats scanResult={lastScanResult} />
                     </div>
-                    <AlternativesGrid />
+                    <AlternativesGrid scanResult={lastScanResult} />
                     </motion.div>
                 </div>
             )}

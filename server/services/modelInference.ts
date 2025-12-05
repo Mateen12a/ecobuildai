@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 
@@ -43,6 +43,46 @@ const MATERIAL_NAMES: Record<string, string> = {
   'ceramic_tiles': 'Ceramic tiles'
 };
 
+function resolvePythonForInference(): string {
+  const isWindows = process.platform === 'win32';
+  const mlstudioWorkerPath = path.join(__dirname, '..', '..', 'MLStudio-main', 'worker', 'tfenv');
+  const venvPython = isWindows
+    ? path.join(mlstudioWorkerPath, 'Scripts', 'python.exe')
+    : path.join(mlstudioWorkerPath, 'bin', 'python');
+
+  // PRIORITY 1: Check ML Studio's venv python
+  if (fs.existsSync(venvPython)) {
+    try {
+      const verRes = spawnSync(venvPython, ['--version'], { timeout: 2000, stdio: 'pipe' });
+      if (verRes.status === 0) {
+        console.log(`✓ Using ML Studio venv python for inference: ${venvPython}`);
+        return venvPython;
+      }
+    } catch (e) {
+      // fallthrough
+    }
+  }
+
+  // PRIORITY 2: Try system python3
+  try {
+    const whichCmd = isWindows ? 'where' : 'which';
+    const whichResult = spawnSync(whichCmd, ['python3'], { timeout: 2000 });
+    if (whichResult.status === 0) {
+      const out = whichResult.stdout.toString().split(/\r?\n/).find(Boolean);
+      if (out) {
+        console.log(`Using system python3 for inference: ${out.trim()}`);
+        return out.trim();
+      }
+    }
+  } catch (e) {
+    // fallthrough
+  }
+
+  // Last resort: return venv python as fallback (will error if not found)
+  console.warn(`⚠ Could not find valid python, attempting venv: ${venvPython}`);
+  return venvPython;
+}
+
 export async function predictWithModel(
   imagePath: string, 
   modelInfo: ModelInfo
@@ -62,7 +102,9 @@ export async function predictWithModel(
       return;
     }
 
-    const pythonProcess = spawn('python3', [
+    const pythonExecutable = resolvePythonForInference();
+
+    const pythonProcess = spawn(pythonExecutable, [
       pythonScript,
       '--image', imagePath,
       '--model', modelInfo.modelPath,
@@ -84,14 +126,23 @@ export async function predictWithModel(
       if (code === 0) {
         try {
           const result = JSON.parse(stdout);
+          // If the python script returned an error or no predictions, fall back to simulation
+          if (result.error || !Array.isArray(result.predictions) || result.predictions.length === 0) {
+            console.warn('Inference script returned no predictions or error:', result.error || 'no predictions');
+            console.debug('python stdout:', stdout);
+            console.debug('python stderr:', stderr);
+            resolve(simulatePrediction());
+            return;
+          }
+
           const predictions = result.predictions.map((p: any) => ({
             class: p.class,
             className: MATERIAL_NAMES[p.class] || p.class,
             confidence: p.confidence
           }));
-          
+
           predictions.sort((a: any, b: any) => b.confidence - a.confidence);
-          
+
           resolve({
             predictions: predictions.slice(0, 5),
             topPrediction: predictions[0],

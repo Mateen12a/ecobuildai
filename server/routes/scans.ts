@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import mongoose from 'mongoose';
 import { Scan, User, MLModel } from '../db/models';
 import { authMiddleware, AuthRequest, optionalAuthMiddleware } from '../middleware/auth';
 import { v4 as uuidv4 } from 'uuid';
@@ -229,12 +230,61 @@ router.post('/predict', optionalAuthMiddleware, upload.single('image'), async (r
       }
     }
 
-    const activeModel = await MLModel.findOne({ isActive: true, status: 'ready' });
+    let activeModel = null;
+    let modelSource = 'none';
+    
+    // PRIORITY 1: Check for active model in ML Studio's TrainedModel collection
+    const db = mongoose.connection.db;
+    if (db) {
+      const trainedModelsCollection = db.collection('trainedmodels');
+      const mlStudioModel = await trainedModelsCollection.findOne({ 
+        isActive: true, 
+        status: 'completed' 
+      });
+      
+      if (mlStudioModel) {
+        // Build model paths from ML Studio's data/models directory
+        const mlStudioModelsDir = path.join(process.cwd(), '..', 'MLStudio-main', 'data', 'models', mlStudioModel.modelId);
+        const modelFile = fs.existsSync(path.join(mlStudioModelsDir, 'model.keras')) 
+          ? path.join(mlStudioModelsDir, 'model.keras')
+          : path.join(mlStudioModelsDir, 'best_model.keras');
+        
+        if (fs.existsSync(modelFile)) {
+          activeModel = {
+            modelPath: modelFile,
+            labelsPath: path.join(mlStudioModelsDir, 'labels.json'),
+            classes: mlStudioModel.classes || [],
+            classIndices: mlStudioModel.classLabels ? Object.fromEntries(mlStudioModel.classLabels) : {},
+            inputShape: [224, 224, 3],
+            modelId: mlStudioModel.modelId,
+            name: mlStudioModel.name || `MLStudio-${mlStudioModel.modelId}`
+          };
+          modelSource = 'mlstudio';
+          console.log(`✓ Using active ML Studio model: ${mlStudioModel.modelId}`);
+        }
+      }
+    }
+    
+    // PRIORITY 2: Fall back to EcoBuild's MLModel if no ML Studio model found
+    if (!activeModel) {
+      const ecobuildModel = await MLModel.findOne({ isActive: true, status: 'ready' });
+      if (ecobuildModel && ecobuildModel.modelPath) {
+        activeModel = {
+          modelPath: ecobuildModel.modelPath,
+          labelsPath: ecobuildModel.labelsPath || '',
+          classes: ecobuildModel.classes || [],
+          classIndices: ecobuildModel.classIndices || {},
+          inputShape: ecobuildModel.inputShape || [224, 224, 3]
+        };
+        modelSource = 'ecobuild';
+        console.log(`✓ Using active EcoBuild model: ${ecobuildModel._id}`);
+      }
+    }
     
     let predictionResult;
     let isSimulation = true;
     
-    if (activeModel && activeModel.modelPath) {
+    if (activeModel) {
       try {
         const imagePath = path.join(UPLOADS_DIR, req.file.filename);
         predictionResult = await predictWithModel(imagePath, {
@@ -244,7 +294,7 @@ router.post('/predict', optionalAuthMiddleware, upload.single('image'), async (r
           classIndices: activeModel.classIndices || {},
           inputShape: activeModel.inputShape || [224, 224, 3]
         });
-        isSimulation = predictionResult.isSimulation;
+        isSimulation = predictionResult?.isSimulation || false;
       } catch (err) {
         console.error('Model prediction error, falling back to simulation:', err);
         predictionResult = null;
@@ -309,8 +359,8 @@ router.post('/predict', optionalAuthMiddleware, upload.single('image'), async (r
         alternatives: material.alternatives
       },
       boundingBox,
-      modelId: activeModel ? activeModel._id.toString() : 'simulation-v1',
-      modelName: activeModel ? activeModel.name : 'EcoBuild Simulation Mode',
+      modelId: activeModel ? (activeModel.modelId || (activeModel._id ? activeModel._id.toString() : 'unknown')) : 'simulation-v1',
+      modelName: activeModel ? (activeModel.name || 'Trained Model') : 'EcoBuild Simulation Mode',
       confidence: topPrediction.confidence,
       status: 'completed'
     };
@@ -322,7 +372,29 @@ router.post('/predict', optionalAuthMiddleware, upload.single('image'), async (r
       scanData.guestToken = guestToken;
     }
 
-    const scan = await Scan.create(scanData);
+    let scan;
+    try {
+      scan = await Scan.create(scanData);
+    } catch (dbErr) {
+      console.error('Failed to create Scan document:', dbErr && dbErr.stack ? dbErr.stack : dbErr);
+      // try to persist minimal record to avoid blocking the user
+      try {
+        const minimal = {
+          imagePath: scanData.imagePath,
+          topPrediction: scanData.topPrediction || { class: 'unknown', className: 'Unknown', confidence: 0 },
+          allPredictions: scanData.allPredictions || [],
+          materialProperties: scanData.materialProperties || {},
+          modelId: scanData.modelId || 'unknown',
+          modelName: scanData.modelName || 'unknown',
+          confidence: scanData.confidence || 0,
+          status: 'completed'
+        };
+        scan = await Scan.create(minimal);
+      } catch (minimalErr) {
+        console.error('Also failed to create minimal Scan document:', minimalErr && minimalErr.stack ? minimalErr.stack : minimalErr);
+        throw dbErr; // rethrow original db error to be caught by outer handler
+      }
+    }
 
     if (req.userId) {
       await User.findByIdAndUpdate(req.userId, {
@@ -363,7 +435,16 @@ router.post('/predict', optionalAuthMiddleware, upload.single('image'), async (r
       scansRemaining: isGuest ? 3 - (await Scan.countDocuments({ guestToken })) : null
     });
   } catch (error) {
-    console.error('Prediction error:', error);
+    try {
+      const errText = (error && error.stack) ? error.stack : String(error);
+      console.error('Prediction error:', errText);
+      const logDir = path.join(process.cwd(), 'logs');
+      if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+      const logPath = path.join(logDir, 'prediction-error.log');
+      fs.appendFileSync(logPath, `${new Date().toISOString()}\n${errText}\n\n`);
+    } catch (e) {
+      console.error('Failed to write prediction error log:', e);
+    }
     res.status(500).json({ error: 'Prediction failed' });
   }
 });

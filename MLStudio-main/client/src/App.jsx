@@ -36,7 +36,10 @@ function App() {
     valLoss: [],
     valAccuracy: [],
     currentEpoch: 0,
-    totalEpochs: 0
+    totalEpochs: 0,
+    currentBatch: 0,
+    stepsPerEpoch: 0,
+    batchProgressPercent: 0
   });
 
   useEffect(() => {
@@ -62,6 +65,8 @@ function App() {
       
       socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
+        // Debug: log incoming websocket messages for visibility during training
+        console.debug('[WS] incoming:', data);
         handleWebSocketMessage(data);
       };
       
@@ -93,8 +98,34 @@ function App() {
           valLoss: [],
           valAccuracy: [],
           currentEpoch: 0,
-          totalEpochs: 0
+          totalEpochs: data.total_epochs || 0,
+          currentBatch: 0,
+          stepsPerEpoch: 0,
+          batchProgressPercent: 0
         });
+        break;
+      case 'training_batch':
+        // batch events are frequent; map them into simple live progress fields
+        setTrainingMetrics(prev => {
+          const steps = data.steps_per_epoch || data.stepsPerEpoch || prev.stepsPerEpoch || 0;
+          const currentBatch = data.batch || data.batch_index || 0;
+          const percent = steps > 0 ? Math.min(100, Math.round((currentBatch / steps) * 100)) : 0;
+          return {
+            ...prev,
+            currentEpoch: (data.epoch || data.epoch_index) || prev.currentEpoch,
+            currentBatch,
+            stepsPerEpoch: steps,
+            batchProgressPercent: percent
+          };
+        });
+        // optionally append batch-level metrics into arrays if present
+        if (typeof data.loss === 'number' || typeof data.accuracy === 'number') {
+          setTrainingMetrics(prev => ({
+            ...prev,
+            loss: typeof data.loss === 'number' ? [...prev.loss, data.loss] : prev.loss,
+            accuracy: typeof data.accuracy === 'number' ? [...prev.accuracy, data.accuracy] : prev.accuracy
+          }));
+        }
         break;
       case 'training_progress':
         setTrainingMetrics(prev => ({
@@ -126,7 +157,7 @@ function App() {
         break;
       case 'training_status':
         if (data.status === 'running') {
-          setTrainingStatus({ status: 'running', runId: data.runId });
+          setTrainingStatus({ status: 'running', runId: data.runId, modelId: data.modelId });
         }
         break;
     }

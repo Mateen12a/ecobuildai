@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch server/index.ts",
+    "dev:both": "concurrently \"npm run dev\" \"npm run dev:mlstudio\"",
+    "dev:mlstudio": "cd MLStudio-main && npm run dev",
     "build": "vite build && esbuild server/index.ts --bundle --platform=node --outdir=dist --format=esm --packages=external",
     "start": "node dist/index.js"
   },

@@ -61,7 +61,7 @@ const alternatives = [
   }
 ];
 
-export function AlternativesGrid() {
+export function AlternativesGrid({ scanResult }: { scanResult?: any } ) {
   const [startIndex, setStartIndex] = useState(0);
   const itemsPerPage = 3; // Show 3 items at a time in the carousel view
 
@@ -73,7 +73,11 @@ export function AlternativesGrid() {
     setStartIndex((prev) => Math.max(0, prev - 1));
   };
 
-  const visibleAlternatives = alternatives.slice(startIndex, startIndex + itemsPerPage);
+  const sourceAlts = scanResult && scanResult.material && scanResult.material.alternatives && scanResult.material.alternatives.length > 0
+    ? scanResult.material.alternatives
+    : alternatives;
+
+  const visibleAlternatives = sourceAlts.slice(startIndex, startIndex + itemsPerPage);
   const canScrollRight = startIndex < alternatives.length - itemsPerPage;
   const canScrollLeft = startIndex > 0;
 
@@ -118,12 +122,18 @@ export function AlternativesGrid() {
               transition={{ duration: 0.3 }}
             >
               <Card className="h-full group overflow-hidden border-none shadow-md hover:shadow-xl transition-all duration-300 bg-white hover:-translate-y-1 flex flex-col">
-                <div className="relative h-48 overflow-hidden shrink-0">
-                  <img 
-                    src={alt.image} 
-                    alt={alt.name} 
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
+                  <div className="relative h-48 overflow-hidden shrink-0">
+                  {alt.image ? (
+                    <img 
+                      src={alt.image} 
+                      alt={alt.name} 
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
+                      <div className="text-6xl font-bold text-white/10">{alt.name?.charAt(0) || ''}</div>
+                    </div>
+                  )}
                   <div className="absolute top-4 right-4 z-10">
                     <Badge className={`${alt.impactColor} border-none shadow-sm backdrop-blur-sm bg-opacity-90`}>
                       <Leaf className="w-3 h-3 mr-1" /> {alt.impact}
