@@ -1,6 +1,24 @@
 import { Router, Request, Response } from 'express';
+import mongoose from 'mongoose';
 
 const router = Router();
+
+const materialImageSchema = new mongoose.Schema({
+  filename: { type: String, required: true },
+  material_key: { type: String, required: true, index: true },
+  material_official: { type: String, required: true },
+  data: { type: Buffer, required: true },
+  content_type: { type: String, default: 'image/jpeg' },
+  width: { type: Number, default: 224 },
+  height: { type: Number, default: 224 },
+  embodied_energy_mj_per_kg: { type: Number, default: null },
+  embodied_carbon_kgco2_kg: { type: Number, default: null },
+  density_kg_m3: { type: Number, default: null },
+  source: { type: String, default: null },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const MaterialImage = mongoose.models.MaterialImage || mongoose.model('MaterialImage', materialImageSchema);
 
 const ICE_MATERIALS = {
   bricks: {
@@ -295,6 +313,71 @@ router.get('/:id/compare', async (req: Request, res: Response) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to compare materials' });
+  }
+});
+
+router.get('/with-images/list', async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 10, 10);
+    
+    const materialsWithImages = await MaterialImage.aggregate([
+      {
+        $group: {
+          _id: '$material_key',
+          material_official: { $first: '$material_official' },
+          imageId: { $first: '$_id' },
+          content_type: { $first: '$content_type' },
+          embodied_carbon: { $first: '$embodied_carbon_kgco2_kg' },
+          embodied_energy: { $first: '$embodied_energy_mj_per_kg' },
+          density: { $first: '$density_kg_m3' },
+          count: { $sum: 1 },
+          createdAt: { $max: '$createdAt' }
+        }
+      },
+      { $sort: { count: -1, createdAt: -1 } },
+      { $limit: limit }
+    ]);
+
+    const result = materialsWithImages.map(m => {
+      const iceMaterial = ICE_MATERIALS[m._id as keyof typeof ICE_MATERIALS];
+      return {
+        key: m._id,
+        name: m.material_official || iceMaterial?.name || m._id,
+        description: iceMaterial?.description || `Training material: ${m.material_official}`,
+        category: iceMaterial?.category || 'Training',
+        embodiedEnergy: m.embodied_energy || iceMaterial?.embodiedEnergy || 0,
+        embodiedCarbon: m.embodied_carbon || iceMaterial?.embodiedCarbon || 0,
+        density: m.density || iceMaterial?.density || 0,
+        impactLevel: iceMaterial?.impactLevel || 'Medium',
+        impactColor: getImpactColor(iceMaterial?.impactLevel || 'Medium'),
+        imageId: m.imageId.toString(),
+        imageCount: m.count,
+        hasImage: true
+      };
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Failed to fetch materials with images:', error);
+    res.status(500).json({ error: 'Failed to fetch materials with images' });
+  }
+});
+
+router.get('/image/:id', async (req: Request, res: Response) => {
+  try {
+    const image = await MaterialImage.findById(req.params.id).select('data content_type');
+    
+    if (!image || !image.data) {
+      res.status(404).json({ error: 'Image not found' });
+      return;
+    }
+
+    res.set('Content-Type', image.content_type || 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(image.data);
+  } catch (error) {
+    console.error('Failed to fetch material image:', error);
+    res.status(500).json({ error: 'Failed to fetch image' });
   }
 });
 

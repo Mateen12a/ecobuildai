@@ -5,7 +5,7 @@ import { AlternativesGrid } from "@/components/alternatives";
 import heroImage from "@assets/generated_images/hero_image_for_sustainable_construction_app.png";
 import { motion } from "framer-motion";
 import type { ScanResult } from "@/lib/api";
-import { Sprout, Building2, BarChart3, Menu, Scan, Leaf, LogIn, ArrowRight, Quote, Star, Users } from "lucide-react";
+import { Sprout, Building2, BarChart3, Menu, Scan, Leaf, LogIn, ArrowRight, Quote, Star, Users, LayoutDashboard, User, Settings, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link, useLocation } from "wouter";
@@ -17,7 +17,16 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { useAuth } from "@/lib/auth-context";
 
 export default function Landing() {
   const [hasScanned, setHasScanned] = useState(false);
@@ -25,6 +34,12 @@ export default function Landing() {
   const [lastScanResult, setLastScanResult] = useState<ScanResult | null>(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [_, setLocation] = useLocation();
+  const { user, isAuthenticated, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    setLocation("/");
+  };
 
   const handleScanComplete = (result?: ScanResult) => {
     if (result) setLastScanResult(result);
@@ -82,12 +97,54 @@ export default function Landing() {
           </div>
 
           <div className="flex items-center gap-4">
-            <Link href="/auth">
-                <Button variant="ghost" className="hidden md:flex">Sign In</Button>
-            </Link>
-            <Link href="/auth">
-                <Button>Get Started <ArrowRight className="ml-2 w-4 h-4" /></Button>
-            </Link>
+            {isAuthenticated ? (
+              <>
+                <Link href="/dashboard">
+                  <Button variant="ghost" className="hidden md:flex gap-2">
+                    <LayoutDashboard className="w-4 h-4" /> Dashboard
+                  </Button>
+                </Link>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Avatar className="h-9 w-9 border border-primary/20 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all">
+                      <AvatarImage src={user?.avatar} alt={user?.firstName} />
+                      <AvatarFallback>{user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">{user?.firstName} {user?.lastName}</p>
+                        <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => setLocation("/dashboard")}>
+                      <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => setLocation("/profile")}>
+                      <User className="mr-2 h-4 w-4" /> Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => setLocation("/settings")}>
+                      <Settings className="mr-2 h-4 w-4" /> Settings
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="cursor-pointer text-red-500 focus:text-red-500" onClick={handleLogout}>
+                      <LogOut className="mr-2 h-4 w-4" /> Log out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            ) : (
+              <>
+                <Link href="/auth">
+                    <Button variant="ghost" className="hidden md:flex">Sign In</Button>
+                </Link>
+                <Link href="/auth">
+                    <Button>Get Started <ArrowRight className="ml-2 w-4 h-4" /></Button>
+                </Link>
+              </>
+            )}
             <Button size="icon" variant="ghost" className="md:hidden">
               <Menu className="w-5 h-5" />
             </Button>

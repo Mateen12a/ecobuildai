@@ -259,6 +259,14 @@ class ApiClient {
     return this.request<string[]>('/materials/categories');
   }
 
+  async getMaterialsWithImages(limit: number = 10) {
+    return this.request<any[]>(`/materials/with-images/list?limit=${limit}`);
+  }
+
+  getMaterialImageUrl(imageId: string) {
+    return `/api/materials/image/${imageId}`;
+  }
+
   async getModelStatus() {
     return this.request<{ available: boolean; model?: any; message?: string }>('/models/active');
   }
