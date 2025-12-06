@@ -214,7 +214,8 @@ function Datasets() {
   };
 
   const searchImages = async () => {
-    if (!selectedClass && !targetMaterial) {
+    const materialKey = targetMaterial || selectedClass?.id;
+    if (!materialKey) {
       setSearchError('Please select a material class first');
       return;
     }
@@ -230,7 +231,12 @@ function Datasets() {
     setSearchError('');
     
     try {
-      const response = await fetch(`/api/image-scrape/search?q=${encodeURIComponent(scrapeQuery)}&count=30`);
+      const params = new URLSearchParams({
+        q: scrapeQuery.trim(),
+        count: '30',
+        materialKey: materialKey
+      });
+      const response = await fetch(`/api/image-scrape/search?${params}`);
       const data = await response.json();
       
       if (data.error) {

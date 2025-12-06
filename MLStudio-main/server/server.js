@@ -1042,16 +1042,17 @@ app.get('/api/models/:id/sync-status', async (req, res) => {
 
 app.get('/api/image-scrape/search', async (req, res) => {
   try {
-    const { q, count = 20 } = req.query;
+    const { q, count = 20, materialKey = null } = req.query;
     
     if (!q || q.trim().length === 0) {
       return res.status(400).json({ error: 'Search query is required' });
     }
     
-    const results = await searchImages(q.trim(), parseInt(count));
+    const results = await searchImages(q.trim(), parseInt(count), materialKey);
     
     res.json({
       query: q,
+      materialKey,
       count: results.length,
       results
     });
@@ -1276,7 +1277,22 @@ app.delete('/api/image-scrape/staged', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3001;
+// Serve static files in production
+if (process.env.NODE_ENV === 'production') {
+  const distPath = path.join(__dirname, '..', 'dist');
+  app.use(express.static(distPath));
+  
+  // Handle client-side routing - serve index.html for all non-API routes
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api') && !req.path.startsWith('/uploads') && !req.path.startsWith('/ws')) {
+      res.sendFile(path.join(distPath, 'index.html'));
+    }
+  });
+  
+  console.log(`Serving static files from ${distPath}`);
+}
+
+const PORT = process.env.PORT || (process.env.NODE_ENV === 'production' ? 5000 : (process.env.BACKEND_PORT || 3001));
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`ML Studio Backend running on port ${PORT}`);
 });
