@@ -3,10 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import sampleImg1 from '@assets/generated_images/hempcrete_texture.png';
-import sampleImg2 from '@assets/generated_images/recycled_steel_texture.png';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Link, useRoute } from "wouter";
-import { ArrowLeft, Leaf, BarChart3, Share2, Download, Info, AlertTriangle, Loader2 } from "lucide-react";
+import { ArrowLeft, Leaf, BarChart3, Share2, Download, Info, AlertTriangle, Loader2, X, ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import api from "@/lib/api";
 
@@ -23,10 +22,20 @@ interface Material {
   alternatives: { id: string; key: string; name: string; embodiedCarbon: number; impactLevel: string }[];
 }
 
+interface MaterialImageData {
+  id: string;
+  filename: string;
+  materialOfficial: string;
+  contentType: string;
+}
+
 export default function MaterialDetail() {
   const [match, params] = useRoute("/materials/:id");
   const [material, setMaterial] = useState<Material | null>(null);
   const [loading, setLoading] = useState(true);
+  const [images, setImages] = useState<MaterialImageData[]>([]);
+  const [loadingImages, setLoadingImages] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (params?.id) {
@@ -38,10 +47,41 @@ export default function MaterialDetail() {
     try {
       const data = await api.getMaterial(id);
       setMaterial(data);
+      loadImages(id);
     } catch (error) {
       console.error("Failed to load material:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadImages = async (materialKey: string) => {
+    setLoadingImages(true);
+    try {
+      const imageData = await api.getMaterialImages(materialKey, 10);
+      setImages(imageData);
+    } catch (error) {
+      console.error("Failed to load images:", error);
+      setImages([]);
+    } finally {
+      setLoadingImages(false);
+    }
+  };
+
+  const openImageViewer = (index: number) => {
+    setSelectedImageIndex(index);
+  };
+
+  const closeImageViewer = () => {
+    setSelectedImageIndex(null);
+  };
+
+  const navigateImage = (direction: 'prev' | 'next') => {
+    if (selectedImageIndex === null) return;
+    if (direction === 'prev') {
+      setSelectedImageIndex(selectedImageIndex > 0 ? selectedImageIndex - 1 : images.length - 1);
+    } else {
+      setSelectedImageIndex(selectedImageIndex < images.length - 1 ? selectedImageIndex + 1 : 0);
     }
   };
 
@@ -182,35 +222,53 @@ export default function MaterialDetail() {
                     </div>
                   </CardContent>
                 </Card>
-                {/* Image gallery: show up to 10 images when available (fall back to nothing) */}
-                {(() => {
-                  const images: string[] = (material as any).images && (material as any).images.length > 0
-                    ? (material as any).images.slice(0, 10)
-                    : (material.name && material.name.toLowerCase().includes('hemp'))
-                      ? Array.from({ length: 10 }).map((_, i) => sampleImg1)
-                      : (material.name && material.name.toLowerCase().includes('steel'))
-                        ? Array.from({ length: 10 }).map((_, i) => sampleImg2)
-                        : [];
-
-                  if (images.length === 0) return null;
-
-                  return (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Image Gallery</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                          {images.map((src, i) => (
-                            <div key={i} className="h-24 bg-gray-100 overflow-hidden rounded">
-                              <img src={src} alt={`${material.name} ${i+1}`} className="w-full h-full object-cover" />
+                {/* Image gallery: show up to 10 images from database */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <ImageIcon className="w-5 h-5" />
+                      Image Gallery
+                      {images.length > 0 && (
+                        <Badge variant="secondary" className="ml-2">{images.length} images</Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {loadingImages ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                        <span className="ml-2 text-muted-foreground">Loading images...</span>
+                      </div>
+                    ) : images.length > 0 ? (
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        {images.map((img, i) => (
+                          <div 
+                            key={img.id} 
+                            className="aspect-square bg-gray-100 overflow-hidden rounded-lg cursor-pointer group relative hover:ring-2 hover:ring-primary transition-all"
+                            onClick={() => openImageViewer(i)}
+                          >
+                            <img 
+                              src={api.getMaterialImageUrl(img.id)} 
+                              alt={`${material.name} ${i+1}`} 
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" 
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                              <span className="text-white opacity-0 group-hover:opacity-100 transition-opacity text-sm font-medium">
+                                Click to view
+                              </span>
                             </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })()}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <ImageIcon className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                        <p>No images available for this material</p>
+                        <p className="text-sm">Images will appear here once added to the database</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               </TabsContent>
 
               <TabsContent value="environmental" className="space-y-6">
@@ -271,6 +329,64 @@ export default function MaterialDetail() {
           </div>
         </div>
       </div>
+
+      {/* Image Viewer Modal */}
+      <Dialog open={selectedImageIndex !== null} onOpenChange={() => closeImageViewer()}>
+        <DialogContent className="max-w-4xl w-full p-0 bg-black/95 border-none">
+          <DialogTitle className="sr-only">Image Viewer</DialogTitle>
+          <DialogDescription className="sr-only">
+            Viewing image {selectedImageIndex !== null ? selectedImageIndex + 1 : 0} of {images.length} for {material?.name}
+          </DialogDescription>
+          <div className="relative">
+            {/* Close button */}
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="absolute top-4 right-4 z-10 text-white hover:bg-white/20"
+              onClick={closeImageViewer}
+            >
+              <X className="w-6 h-6" />
+            </Button>
+
+            {/* Navigation buttons */}
+            {images.length > 1 && (
+              <>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="absolute left-4 top-1/2 -translate-y-1/2 z-10 text-white hover:bg-white/20 h-12 w-12"
+                  onClick={() => navigateImage('prev')}
+                >
+                  <ChevronLeft className="w-8 h-8" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="absolute right-4 top-1/2 -translate-y-1/2 z-10 text-white hover:bg-white/20 h-12 w-12"
+                  onClick={() => navigateImage('next')}
+                >
+                  <ChevronRight className="w-8 h-8" />
+                </Button>
+              </>
+            )}
+
+            {/* Image */}
+            {selectedImageIndex !== null && images[selectedImageIndex] && (
+              <div className="flex flex-col items-center justify-center min-h-[400px] p-8">
+                <img 
+                  src={api.getMaterialImageUrl(images[selectedImageIndex].id)} 
+                  alt={`${material?.name} - Image ${selectedImageIndex + 1}`}
+                  className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                />
+                <div className="mt-4 text-center text-white">
+                  <p className="text-lg font-medium">{material?.name}</p>
+                  <p className="text-sm text-white/60">Image {selectedImageIndex + 1} of {images.length}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

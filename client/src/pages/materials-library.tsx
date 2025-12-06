@@ -3,9 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Filter, Leaf, AlertTriangle, ArrowLeft, Loader2 } from "lucide-react";
+import { Search, Filter, Leaf, AlertTriangle, ArrowLeft, Loader2, Image as ImageIcon } from "lucide-react";
 import { Link } from "wouter";
 import api from "@/lib/api";
+
+interface MaterialImage {
+  id: string;
+  filename: string;
+  materialOfficial: string;
+  contentType: string;
+}
 
 interface Material {
   id: string;
@@ -20,8 +27,13 @@ interface Material {
   impactColor: { bg: string; text: string };
 }
 
+interface MaterialWithImages extends Material {
+  images: MaterialImage[];
+  loadingImages: boolean;
+}
+
 export default function MaterialsLibrary() {
-  const [materials, setMaterials] = useState<Material[]>([]);
+  const [materials, setMaterials] = useState<MaterialWithImages[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -35,11 +47,38 @@ export default function MaterialsLibrary() {
   const loadMaterials = async () => {
     try {
       const data = await api.getMaterials();
-      setMaterials(data);
+      const materialsWithImages: MaterialWithImages[] = data.map((m: Material) => ({
+        ...m,
+        images: [],
+        loadingImages: true
+      }));
+      setMaterials(materialsWithImages);
+      setLoading(false);
+      
+      for (const material of materialsWithImages) {
+        loadMaterialImages(material.key);
+      }
     } catch (error) {
       console.error("Failed to load materials:", error);
-    } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMaterialImages = async (materialKey: string) => {
+    try {
+      const images = await api.getMaterialImages(materialKey, 10);
+      setMaterials(prev => prev.map(m => 
+        m.key === materialKey 
+          ? { ...m, images, loadingImages: false }
+          : m
+      ));
+    } catch (error) {
+      console.error(`Failed to load images for ${materialKey}:`, error);
+      setMaterials(prev => prev.map(m => 
+        m.key === materialKey 
+          ? { ...m, loadingImages: false }
+          : m
+      ));
     }
   };
 
@@ -137,11 +176,24 @@ export default function MaterialsLibrary() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredMaterials.map((material) => {
             const ImpactIcon = getImpactIcon(material.impactLevel);
+            const hasImages = material.images && material.images.length > 0;
+            const firstImage = hasImages ? material.images[0] : null;
+            
             return (
               <Link key={material.id} href={`/materials/${material.id}`}>
                 <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 border-none shadow-md cursor-pointer group hover:-translate-y-1 h-full">
                   <div className="h-32 bg-gradient-to-br from-slate-800 to-slate-900 relative overflow-hidden flex items-center justify-center">
-                    <div className="text-6xl font-bold text-white/10">{material.name.charAt(0)}</div>
+                    {material.loadingImages ? (
+                      <Loader2 className="w-8 h-8 animate-spin text-white/30" />
+                    ) : hasImages && firstImage ? (
+                      <img 
+                        src={api.getMaterialImageUrl(firstImage.id)} 
+                        alt={material.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="text-6xl font-bold text-white/10">{material.name.charAt(0)}</div>
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
                     <div className="absolute top-3 right-3">
                       <Badge className={`${getImpactColorClass(material.impactLevel)} border-none`}>
@@ -149,10 +201,16 @@ export default function MaterialsLibrary() {
                         {material.impactLevel} Impact
                       </Badge>
                     </div>
-                    <div className="absolute bottom-3 left-3">
+                    <div className="absolute bottom-3 left-3 flex gap-2">
                       <Badge variant="secondary" className="bg-white/20 text-white border-none backdrop-blur-sm">
                         {material.category}
                       </Badge>
+                      {hasImages && (
+                        <Badge variant="secondary" className="bg-white/20 text-white border-none backdrop-blur-sm">
+                          <ImageIcon className="w-3 h-3 mr-1" />
+                          {material.images.length}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   <CardHeader className="pb-2">

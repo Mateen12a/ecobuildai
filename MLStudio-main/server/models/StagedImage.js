@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const stagedImageSchema = new mongoose.Schema({
   searchQuery: { type: String, required: true, index: true },
+  externalId: { type: String, index: true },
   thumbnailUrl: { type: String, required: true },
   fullImageUrl: { type: String, required: true },
   source: { type: String },

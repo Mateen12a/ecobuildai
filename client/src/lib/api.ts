@@ -267,6 +267,12 @@ class ApiClient {
     return `/api/materials/image/${imageId}`;
   }
 
+  async getMaterialImages(materialKey: string, limit: number = 10) {
+    return this.request<{ id: string; filename: string; materialOfficial: string; contentType: string }[]>(
+      `/materials/by-key/${materialKey}/images?limit=${limit}`
+    );
+  }
+
   async getModelStatus() {
     return this.request<{ available: boolean; model?: any; message?: string }>('/models/active');
   }

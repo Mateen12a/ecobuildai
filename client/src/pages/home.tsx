@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sprout, Building2, BarChart3, Menu, Scan, Leaf, LogOut, Settings, User, CreditCard, LayoutDashboard, FolderOpen, FileText, Search, Box, Layers, Cuboid, Upload, Loader2, AlertTriangle, Clock, Cpu, Info, Eye, X, Camera, Image as ImageIcon, RotateCcw, CheckCircle2, TrendingDown, ChevronRight, Library } from "lucide-react";
+import { Sprout, Building2, BarChart3, Menu, Scan, Leaf, LogOut, Settings, User, CreditCard, LayoutDashboard, FolderOpen, FileText, Search, Box, Layers, Cuboid, Upload, Loader2, AlertTriangle, Clock, Cpu, Info, Eye, X, Camera, Image as ImageIcon, RotateCcw, CheckCircle2, TrendingDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Link, useLocation } from "wouter";
@@ -40,20 +40,6 @@ import {
   Cell
 } from 'recharts';
 
-interface MaterialWithImage {
-  key: string;
-  name: string;
-  description: string;
-  category: string;
-  embodiedEnergy: number;
-  embodiedCarbon: number;
-  density: number;
-  impactLevel: string;
-  imageId: string;
-  imageCount: number;
-  hasImage: boolean;
-}
-
 export default function Home() {
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -63,8 +49,6 @@ export default function Home() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [modelStatus, setModelStatus] = useState<{ available: boolean; message?: string } | null>(null);
   const [activeView, setActiveView] = useState<'preview' | 'wireframe' | '3d'>('preview');
-  const [materialsWithImages, setMaterialsWithImages] = useState<MaterialWithImage[]>([]);
-  const [loadingMaterials, setLoadingMaterials] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user, logout } = useAuth();
@@ -74,7 +58,6 @@ export default function Home() {
   useEffect(() => {
     loadStats();
     checkModelStatus();
-    loadMaterialsWithImages();
   }, []);
 
   const checkModelStatus = async () => {
@@ -96,18 +79,6 @@ export default function Home() {
       });
     } catch (error) {
       console.error("Failed to load stats:", error);
-    }
-  };
-
-  const loadMaterialsWithImages = async () => {
-    try {
-      setLoadingMaterials(true);
-      const materials = await api.getMaterialsWithImages(10);
-      setMaterialsWithImages(materials);
-    } catch (error) {
-      console.error("Failed to load materials with images:", error);
-    } finally {
-      setLoadingMaterials(false);
     }
   };
 
@@ -833,77 +804,6 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-2xl font-display font-bold flex items-center gap-2">
-                <Library className="w-6 h-6 text-primary" />
-                Materials Library
-              </h2>
-              <p className="text-muted-foreground">Training materials from database with real images</p>
-            </div>
-            <Link href="/materials">
-              <Button variant="outline" className="gap-2">
-                View All <ChevronRight className="w-4 h-4" />
-              </Button>
-            </Link>
-          </div>
-
-          {loadingMaterials ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-          ) : materialsWithImages.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {materialsWithImages.map((material, i) => (
-                <motion.div
-                  key={material.key}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                >
-                  <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer group hover:-translate-y-1">
-                    <div className="aspect-square bg-gradient-to-br from-slate-800 to-slate-900 relative overflow-hidden">
-                      {material.hasImage && material.imageId ? (
-                        <img 
-                          src={api.getMaterialImageUrl(material.imageId)} 
-                          alt={material.name}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <span className="text-4xl font-bold text-white/20">{material.name.charAt(0)}</span>
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                      <Badge className="absolute top-2 right-2 text-xs bg-white/20 backdrop-blur-sm text-white border-none">
-                        {material.imageCount} images
-                      </Badge>
-                    </div>
-                    <CardContent className="p-3">
-                      <h4 className="font-semibold text-sm truncate group-hover:text-primary transition-colors">{material.name}</h4>
-                      <div className="flex items-center justify-between mt-1 text-xs text-muted-foreground">
-                        <span>{material.embodiedCarbon} kgCO2/kg</span>
-                        <Badge variant="outline" className="text-xs px-1.5 py-0">{material.category}</Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
-          ) : (
-            <Card className="bg-secondary/20 border-dashed">
-              <CardContent className="py-12 text-center">
-                <Library className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="font-semibold text-lg mb-2">No Training Materials Yet</h3>
-                <p className="text-muted-foreground max-w-md mx-auto">
-                  Materials with images will appear here once you start training your ML model with real construction material data.
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
       </main>
     </div>
   );

@@ -1074,6 +1074,7 @@ app.post('/api/image-scrape/stage', async (req, res) => {
     for (const item of items) {
       const staged = await StagedImage.create({
         searchQuery: query,
+        externalId: item.id || null,
         thumbnailUrl: item.thumbnailUrl,
         fullImageUrl: item.fullImageUrl,
         source: item.source,
@@ -1081,9 +1082,13 @@ app.post('/api/image-scrape/stage', async (req, res) => {
         width: item.width,
         height: item.height
       });
-      
+
+      // Return both the internal staged id and the external provider id so the client
+      // can reliably reference the staged doc when curating. Some clients may send
+      // back the original provider id (e.g. base64 short id) — we'll accept that too.
       stagedItems.push({
-        id: staged._id.toString(),
+        stagedId: staged._id.toString(),
+        externalId: staged.externalId || null,
         ...item
       });
     }
@@ -1111,7 +1116,8 @@ app.get('/api/image-scrape/staged', async (req, res) => {
       .limit(100);
     
     res.json(staged.map(s => ({
-      id: s._id.toString(),
+      stagedId: s._id.toString(),
+      externalId: s.externalId || null,
       searchQuery: s.searchQuery,
       thumbnailUrl: s.thumbnailUrl,
       fullImageUrl: s.fullImageUrl,
@@ -1146,11 +1152,28 @@ app.post('/api/image-scrape/curate', async (req, res) => {
     const savedImages = [];
     const errors = [];
     
-    for (const stagedId of stagedIds) {
+    for (const stagedIdRaw of stagedIds) {
       try {
-        const staged = await StagedImage.findById(stagedId);
+        let staged = null;
+        // Accept either the internal Mongo _id (hex) or the external provider id
+        // (base64 or provider-specific). Try to resolve to the DB document.
+        const stagedId = String(stagedIdRaw || '');
+
+        // First, try treating it as a Mongo id
+        try {
+          staged = await StagedImage.findById(stagedId);
+        } catch (castErr) {
+          // ignore cast error, we'll try externalId next
+          staged = null;
+        }
+
+        // If not found by _id, try externalId lookup
+        if (!staged) {
+          staged = await StagedImage.findOne({ externalId: stagedId });
+        }
+
         if (!staged || staged.status !== 'staged') {
-          errors.push({ id: stagedId, error: 'Not found or already processed' });
+          errors.push({ id: stagedIdRaw, error: 'Not found or already processed' });
           continue;
         }
         
@@ -1176,7 +1199,7 @@ app.post('/api/image-scrape/curate', async (req, res) => {
           density_kg_m3: material.density_kg_m3
         });
         
-        await StagedImage.findByIdAndUpdate(stagedId, { status: 'accepted' });
+        await StagedImage.findByIdAndUpdate(staged._id, { status: 'accepted' });
         
         savedImages.push({
           id: newImage._id.toString(),
@@ -1185,8 +1208,8 @@ app.post('/api/image-scrape/curate', async (req, res) => {
           thumbnailUrl: `/api/images/${newImage._id}/thumbnail`
         });
       } catch (itemError) {
-        console.error(`Error processing staged image ${stagedId}:`, itemError.message);
-        errors.push({ id: stagedId, error: itemError.message });
+        console.error(`Error processing staged image ${stagedIdRaw}:`, itemError.message);
+        errors.push({ id: stagedIdRaw, error: itemError.message });
       }
     }
     
@@ -1214,12 +1237,30 @@ app.post('/api/image-scrape/discard', async (req, res) => {
     if (!stagedIds || !Array.isArray(stagedIds)) {
       return res.status(400).json({ error: 'No images to discard' });
     }
-    
-    const result = await StagedImage.updateMany(
-      { _id: { $in: stagedIds.map(id => new mongoose.Types.ObjectId(id)) } },
-      { status: 'discarded' }
-    );
-    
+    // Support both internal Mongo ids and external provider ids. Build query that
+    // matches either _id in the provided list (when valid) or externalId in the list.
+    const objectIds = [];
+    const externalIds = [];
+
+    for (const idRaw of stagedIds) {
+      const idStr = String(idRaw || '');
+      try {
+        objectIds.push(new mongoose.Types.ObjectId(idStr));
+      } catch (e) {
+        externalIds.push(idStr);
+      }
+    }
+
+    const query = { $or: [] };
+    if (objectIds.length) query.$or.push({ _id: { $in: objectIds } });
+    if (externalIds.length) query.$or.push({ externalId: { $in: externalIds } });
+
+    if (query.$or.length === 0) {
+      return res.status(400).json({ error: 'No valid ids provided' });
+    }
+
+    const result = await StagedImage.updateMany(query, { status: 'discarded' });
+
     res.json({ success: true, discarded: result.modifiedCount });
   } catch (error) {
     res.status(500).json({ error: 'Failed to discard images' });

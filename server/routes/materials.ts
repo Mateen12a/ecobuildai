@@ -381,4 +381,26 @@ router.get('/image/:id', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/by-key/:materialKey/images', async (req: Request, res: Response) => {
+  try {
+    const { materialKey } = req.params;
+    const limit = Math.min(parseInt(req.query.limit as string) || 10, 10);
+    
+    const images = await MaterialImage.find({ material_key: materialKey })
+      .select('_id filename material_official content_type createdAt')
+      .sort({ createdAt: -1 })
+      .limit(limit);
+
+    res.json(images.map(img => ({
+      id: img._id.toString(),
+      filename: img.filename,
+      materialOfficial: img.material_official,
+      contentType: img.content_type
+    })));
+  } catch (error) {
+    console.error('Failed to fetch material images:', error);
+    res.status(500).json({ error: 'Failed to fetch material images' });
+  }
+});
+
 export default router;
