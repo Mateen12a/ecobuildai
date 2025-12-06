@@ -75,16 +75,25 @@ function buildSearchQueries(materialKey, baseName) {
   return [...new Set(queries)];
 }
 
-export async function searchImages(query, count = 20, materialKey = null) {
+export async function searchImages(query, count = 100, materialKey = null) {
   let searchQueries = [];
   
   if (materialKey && MATERIAL_SEARCH_TERMS[materialKey]) {
     searchQueries = buildSearchQueries(materialKey, query);
+    // Add more query variations for larger result sets
+    const terms = MATERIAL_SEARCH_TERMS[materialKey] || [];
+    if (count > 50 && terms.length > 3) {
+      searchQueries.push(...terms.slice(3, 5).map(term => `${term} photo`));
+    }
   } else {
-    searchQueries = [`${query} construction material photo`];
+    searchQueries = [
+      `${query} construction material photo`,
+      `${query} building material`,
+      `${query} texture closeup`
+    ];
   }
   
-  console.log(`Image search for: ${query} (key: ${materialKey})`);
+  console.log(`Image search for: ${query} (key: ${materialKey}), requesting ${count} images`);
   console.log(`Using queries: ${searchQueries.join(', ')}`);
   
   if (GOOGLE_API_KEY && GOOGLE_CX) {
@@ -96,7 +105,7 @@ export async function searchImages(query, count = 20, materialKey = null) {
   for (const searchQuery of searchQueries) {
     if (allResults.length >= count) break;
     
-    const remaining = count - allResults.length;
+    const remaining = Math.min(count - allResults.length, 50);
     let results = await duckDuckGoImageSearch(searchQuery, remaining);
     
     if (results.length === 0) {

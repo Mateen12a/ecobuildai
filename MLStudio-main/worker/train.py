@@ -47,16 +47,28 @@ except ImportError as e:
 
 class TrainingCallback(keras.callbacks.Callback):
 
-    def __init__(self, total_epochs):
+    def __init__(self, total_epochs, phase_name="Training", phase_number=1, total_phases=3):
         super().__init__()
         self.total_epochs = total_epochs
         self.global_epoch = 0
         self.steps_per_epoch = None
         self.current_phase_epoch = 0
+        self.phase_name = phase_name
+        self.phase_number = phase_number
+        self.total_phases = total_phases
+
+    def set_phase(self, phase_name, phase_number):
+        self.phase_name = phase_name
+        self.phase_number = phase_number
 
     def on_epoch_begin(self, epoch, logs=None):
         self.current_phase_epoch = epoch
-        log_message(f"Starting epoch {epoch + 1}/{self.total_epochs}")
+        log_event("phase_update",
+                  phase_name=self.phase_name,
+                  phase_number=self.phase_number,
+                  total_phases=self.total_phases,
+                  phase_epoch=epoch + 1)
+        log_message(f"[{self.phase_name}] Starting epoch {epoch + 1}/{self.total_epochs}")
 
     def on_train_begin(self, logs=None):
         # try to discover steps per epoch (Keras provides in params)
@@ -85,13 +97,20 @@ class TrainingCallback(keras.callbacks.Callback):
                   val_accuracy=float(logs.get('val_accuracy', 0)))
 
     def on_batch_end(self, batch, logs=None):
-        if batch % 10 == 0:
+        # Report progress every 5 batches for more granular updates
+        if batch % 5 == 0:
             logs = logs or {}
-            # batch index here is zero-based within current epoch; compute and report progress
+            # Calculate overall progress percentage
+            batch_progress = 0
+            if self.steps_per_epoch and self.steps_per_epoch > 0:
+                batch_progress = min(100, int((batch / self.steps_per_epoch) * 100))
+            
             log_event("batch_end",
                       batch=int(batch),
                       steps_per_epoch=int(self.steps_per_epoch) if self.steps_per_epoch else None,
                       epoch=(self.global_epoch + 1),
+                      total_epochs=self.total_epochs,
+                      batch_progress=batch_progress,
                       loss=float(logs.get('loss', 0)),
                       accuracy=float(logs.get('accuracy', 0)))
 
@@ -260,22 +279,40 @@ def load_data_from_mongo(mongo_uri, image_size=(224, 224)):
     return X, y_labels, filenames
 
 
+def mixup_data(X, y, alpha=0.2):
+    """Apply mixup augmentation to training data"""
+    if alpha > 0:
+        lam = np.random.beta(alpha, alpha)
+    else:
+        lam = 1
+    
+    batch_size = len(X)
+    index = np.random.permutation(batch_size)
+    
+    mixed_X = lam * X + (1 - lam) * X[index]
+    mixed_y = lam * y + (1 - lam) * y[index]
+    
+    return mixed_X, mixed_y
+
+
 def augment_dataset(X, y, augmentation_factor=3):
-    """Augment the dataset by creating additional samples"""
+    """Augment the dataset by creating additional samples with enhanced techniques"""
     log_message(f"Augmenting dataset by factor of {augmentation_factor}...")
     
     X_augmented = [X]
     y_augmented = [y]
     
+    # Enhanced data augmentation parameters
     datagen = ImageDataGenerator(
-        rotation_range=40,
-        width_shift_range=0.25,
-        height_shift_range=0.25,
-        shear_range=0.2,
-        zoom_range=0.25,
+        rotation_range=45,
+        width_shift_range=0.3,
+        height_shift_range=0.3,
+        shear_range=0.25,
+        zoom_range=0.3,
         horizontal_flip=True,
         vertical_flip=False,
-        brightness_range=[0.7, 1.3],
+        brightness_range=[0.6, 1.4],
+        channel_shift_range=30,
         fill_mode='nearest'
     )
     
@@ -285,6 +322,19 @@ def augment_dataset(X, y, augmentation_factor=3):
             img = X[j:j+1]
             img_normalized = (img + 1) * 127.5
             augmented = datagen.random_transform(img_normalized[0])
+            # Apply additional PIL augmentation for some samples
+            if random.random() > 0.5:
+                augmented = np.clip(augmented, 0, 255)
+                pil_img = Image.fromarray(augmented.astype(np.uint8))
+                # Random color jitter
+                if random.random() > 0.5:
+                    enhancer = ImageEnhance.Color(pil_img)
+                    pil_img = enhancer.enhance(random.uniform(0.8, 1.2))
+                # Random sharpness
+                if random.random() > 0.7:
+                    enhancer = ImageEnhance.Sharpness(pil_img)
+                    pil_img = enhancer.enhance(random.uniform(0.8, 1.5))
+                augmented = np.array(pil_img).astype(np.float32)
             X_aug[j] = (augmented - 127.5) / 127.5
         X_augmented.append(X_aug)
         y_augmented.append(y)
@@ -359,11 +409,14 @@ def train_model(args):
     else:
         model, base_model, preprocess_fn = create_improved_model(num_classes, use_efficientnet=True)
 
+    # Use label smoothing for better generalization
+    label_smoothing = 0.1
     model.compile(
         optimizer=optimizers.Adam(learning_rate=args.learning_rate),
-        loss='categorical_crossentropy',
+        loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=label_smoothing),
         metrics=['accuracy']
     )
+    log_message(f"Using label smoothing: {label_smoothing}")
 
     log_message(f"Model compiled with {model.count_params():,} parameters")
 
@@ -372,8 +425,16 @@ def train_model(args):
 
     total_epochs = args.epochs + max(10, args.epochs // 2)
     
+    # Create training callback with phase tracking
+    training_progress_callback = TrainingCallback(
+        total_epochs, 
+        phase_name="Feature Extraction", 
+        phase_number=1, 
+        total_phases=3
+    )
+    
     training_callbacks = [
-        TrainingCallback(total_epochs),
+        training_progress_callback,
         callbacks.EarlyStopping(
             monitor='val_accuracy',
             patience=8,
@@ -416,6 +477,9 @@ def train_model(args):
     log_message("=" * 50)
     log_message("PHASE 2: Fine-tuning top layers of base model")
     log_message("=" * 50)
+    
+    # Update phase tracking
+    training_progress_callback.set_phase("Fine-tuning", 2)
 
     base_model.trainable = True
     
@@ -428,7 +492,7 @@ def train_model(args):
 
     model.compile(
         optimizer=optimizers.Adam(learning_rate=args.learning_rate * 0.1),
-        loss='categorical_crossentropy',
+        loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=label_smoothing),
         metrics=['accuracy']
     )
 
@@ -450,6 +514,9 @@ def train_model(args):
     log_message("=" * 50)
     log_message("PHASE 3: Fine-tuning with even lower learning rate")
     log_message("=" * 50)
+    
+    # Update phase tracking
+    training_progress_callback.set_phase("Deep Fine-tuning", 3)
 
     if hasattr(base_model, 'layers'):
         freeze_until = int(num_layers * 0.5)
@@ -461,7 +528,7 @@ def train_model(args):
 
     model.compile(
         optimizer=optimizers.Adam(learning_rate=args.learning_rate * 0.01),
-        loss='categorical_crossentropy',
+        loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=label_smoothing),
         metrics=['accuracy']
     )
 

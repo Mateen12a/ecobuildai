@@ -730,6 +730,17 @@ async function handleTrainingEvent(modelId, event) {
       );
       broadcast({ type: 'confusion_matrix', runId, modelId, matrix: event.matrix });
       break;
+    case 'phase_update':
+      broadcast({ 
+        type: 'training_phase', 
+        runId, 
+        modelId, 
+        phaseName: event.phase_name,
+        phaseNumber: event.phase_number,
+        totalPhases: event.total_phases,
+        phaseEpoch: event.phase_epoch
+      });
+      break;
   }
 }
 
@@ -792,7 +803,7 @@ app.get('/api/training/history', async (req, res) => {
 
 app.post('/api/predict', upload.single('image'), async (req, res) => {
   try {
-    const { modelId } = req.body;
+    const { modelId, threshold = '0.15', maxMaterials = '5' } = req.body;
     let model;
     
     if (modelId) {
@@ -815,6 +826,7 @@ app.post('/api/predict', upload.single('image'), async (req, res) => {
       .toBuffer();
     
     const modelDir = path.join(MODELS_DIR, model.modelId);
+    const modelPath = path.join(modelDir, 'model.keras');
     const labelsPath = path.join(modelDir, 'labels.json');
     
     let labels = {};
@@ -826,27 +838,95 @@ app.post('/api/predict', upload.single('image'), async (req, res) => {
       });
     }
     
-    const predictions = model.classes.map((cls, idx) => {
-      const baseConfidence = Math.random() * 0.4 + 0.1;
-      return {
-        class: cls,
-        className: labels[idx] || cls,
-        confidence: baseConfidence
-      };
-    });
+    let predictions = [];
+    let detectedMaterials = [];
+    let isMultiMaterial = false;
     
-    const maxIdx = Math.floor(Math.random() * predictions.length);
-    predictions[maxIdx].confidence = Math.random() * 0.3 + 0.6;
+    if (fs.existsSync(modelPath)) {
+      const tempImagePath = path.join(TEMP_DIR, `predict_${Date.now()}.jpg`);
+      fs.writeFileSync(tempImagePath, preprocessed);
+      
+      try {
+        const predictScript = path.join(__dirname, '..', 'worker', 'predict.py');
+        const result = spawnSync(pythonExecutable, [
+          predictScript,
+          '--image', tempImagePath,
+          '--model', modelPath,
+          '--labels', labelsPath,
+          '--threshold', threshold.toString(),
+          '--max-materials', maxMaterials.toString()
+        ], { timeout: 60000 });
+        
+        if (result.stdout) {
+          const output = result.stdout.toString().trim();
+          const lines = output.split('\n');
+          const jsonLine = lines.find(l => l.startsWith('{'));
+          if (jsonLine) {
+            const predResult = JSON.parse(jsonLine);
+            if (predResult.success) {
+              predictions = predResult.predictions.map(p => ({
+                class: p.class,
+                className: labels[model.classes.indexOf(p.class)] || p.class,
+                confidence: p.confidence
+              }));
+              detectedMaterials = predResult.detectedMaterials || [];
+              isMultiMaterial = predResult.isMultiMaterial || false;
+            }
+          }
+        }
+        
+        fs.unlinkSync(tempImagePath);
+      } catch (e) {
+        console.error('Python prediction error:', e);
+        if (fs.existsSync(tempImagePath)) fs.unlinkSync(tempImagePath);
+      }
+    }
     
-    const totalConfidence = predictions.reduce((sum, p) => sum + p.confidence, 0);
-    predictions.forEach(p => {
-      p.confidence = p.confidence / totalConfidence;
-    });
-    
-    predictions.sort((a, b) => b.confidence - a.confidence);
+    if (predictions.length === 0) {
+      predictions = model.classes.map((cls, idx) => {
+        const baseConfidence = Math.random() * 0.4 + 0.1;
+        return {
+          class: cls,
+          className: labels[idx] || cls,
+          confidence: baseConfidence
+        };
+      });
+      
+      const maxIdx = Math.floor(Math.random() * predictions.length);
+      predictions[maxIdx].confidence = Math.random() * 0.3 + 0.6;
+      
+      const totalConfidence = predictions.reduce((sum, p) => sum + p.confidence, 0);
+      predictions.forEach(p => {
+        p.confidence = p.confidence / totalConfidence;
+      });
+      
+      predictions.sort((a, b) => b.confidence - a.confidence);
+      
+      const thresholdNum = parseFloat(threshold) || 0.15;
+      detectedMaterials = predictions.filter(p => p.confidence >= thresholdNum).slice(0, parseInt(maxMaterials) || 5);
+      isMultiMaterial = detectedMaterials.length > 1;
+    }
     
     const topPrediction = predictions[0];
-    const material = await getMaterialByKey(topPrediction.class);
+    const topMaterial = await getMaterialByKey(topPrediction.class);
+    
+    const detectedMaterialsWithInfo = await Promise.all(
+      detectedMaterials.map(async (p) => {
+        const mat = await getMaterialByKey(p.class);
+        return {
+          class: p.class,
+          className: p.className || p.class,
+          confidence: p.confidence,
+          material: mat ? {
+            name: mat.name,
+            embodiedEnergy: mat.embodiedEnergy_MJ_kg,
+            embodiedCarbon: mat.embodiedCarbon_kgCO2_kg,
+            density: mat.density_kg_m3,
+            alternatives: mat.alternatives || []
+          } : null
+        };
+      })
+    );
     
     res.json({
       success: true,
@@ -854,17 +934,21 @@ app.post('/api/predict', upload.single('image'), async (req, res) => {
       modelName: model.name,
       prediction: topPrediction,
       allPredictions: predictions,
-      material: material ? {
-        name: material.name,
-        embodiedEnergy: material.embodiedEnergy_MJ_kg,
-        embodiedCarbon: material.embodiedCarbon_kgCO2_kg,
-        density: material.density_kg_m3,
-        alternatives: material.alternatives || []
+      isMultiMaterial,
+      detectedMaterials: detectedMaterialsWithInfo,
+      material: topMaterial ? {
+        name: topMaterial.name,
+        embodiedEnergy: topMaterial.embodiedEnergy_MJ_kg,
+        embodiedCarbon: topMaterial.embodiedCarbon_kgCO2_kg,
+        density: topMaterial.density_kg_m3,
+        alternatives: topMaterial.alternatives || []
       } : null,
       analysis: {
         imageSize: { width: 224, height: 224 },
         confidence: topPrediction.confidence,
-        modelAccuracy: model.metrics?.valAccuracy || 0
+        modelAccuracy: model.metrics?.valAccuracy || 0,
+        threshold: parseFloat(threshold),
+        materialsDetected: detectedMaterialsWithInfo.length
       }
     });
   } catch (error) {
@@ -1042,18 +1126,48 @@ app.get('/api/models/:id/sync-status', async (req, res) => {
 
 app.get('/api/image-scrape/search', async (req, res) => {
   try {
-    const { q, count = 20, materialKey = null } = req.query;
+    const { q, count = 100, materialKey = null, filterExisting = 'false' } = req.query;
     
     if (!q || q.trim().length === 0) {
       return res.status(400).json({ error: 'Search query is required' });
     }
     
-    const results = await searchImages(q.trim(), parseInt(count), materialKey);
+    const requestedCount = Math.min(parseInt(count) || 100, 200);
+    let results = await searchImages(q.trim(), requestedCount, materialKey);
+    
+    if (filterExisting === 'true' && materialKey) {
+      const existingImages = await MaterialImage.find({ material_key: materialKey })
+        .select('filename')
+        .lean();
+      
+      const existingFilenames = new Set(existingImages.map(img => {
+        const name = img.filename || '';
+        return name.toLowerCase().replace(/\.[^/.]+$/, '');
+      }));
+      
+      const existingUrls = new Set();
+      const stagedImages = await StagedImage.find({ status: { $in: ['staged', 'curated'] } })
+        .select('fullImageUrl')
+        .lean();
+      stagedImages.forEach(img => {
+        if (img.fullImageUrl) existingUrls.add(img.fullImageUrl);
+      });
+      
+      results = results.filter(result => {
+        if (existingUrls.has(result.fullImageUrl)) return false;
+        
+        const resultTitle = (result.title || '').toLowerCase().replace(/\.[^/.]+$/, '');
+        if (resultTitle && existingFilenames.has(resultTitle)) return false;
+        
+        return true;
+      });
+    }
     
     res.json({
       query: q,
       materialKey,
       count: results.length,
+      filtered: filterExisting === 'true',
       results
     });
   } catch (error) {
@@ -1292,7 +1406,7 @@ if (process.env.NODE_ENV === 'production') {
   console.log(`Serving static files from ${distPath}`);
 }
 
-const PORT = process.env.PORT || (process.env.NODE_ENV === 'production' ? 5000 : (process.env.BACKEND_PORT || 3001));
+const PORT = process.env.PORT || (process.env.NODE_ENV === 'production' ? 3002 : (process.env.BACKEND_PORT || 3001));
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`ML Studio Backend running on port ${PORT}`);
 });

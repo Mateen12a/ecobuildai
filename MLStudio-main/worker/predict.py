@@ -34,8 +34,20 @@ def load_and_preprocess_image(image_path: str, target_size=(224, 224)):
     return img_array
 
 
-def predict(image_path: str, model_path: str, labels_path: str):
-    """Run prediction on an image using the trained model"""
+def predict(image_path: str, model_path: str, labels_path: str, 
+            multi_material_threshold: float = 0.15, max_materials: int = 5):
+    """Run prediction on an image using the trained model
+    
+    Args:
+        image_path: Path to the image file
+        model_path: Path to the trained model
+        labels_path: Path to the labels JSON file
+        multi_material_threshold: Minimum confidence threshold for multi-material detection (default 0.15)
+        max_materials: Maximum number of materials to detect (default 5)
+    
+    Returns:
+        Dictionary with predictions, detected materials, and analysis
+    """
     
     if not TF_AVAILABLE:
         return {
@@ -83,8 +95,25 @@ def predict(image_path: str, model_path: str, labels_path: str):
         
         pred_classes.sort(key=lambda x: x['confidence'], reverse=True)
         
+        detected_materials = [
+            p for p in pred_classes 
+            if p['confidence'] >= multi_material_threshold
+        ][:max_materials]
+        
+        is_multi_material = len(detected_materials) > 1
+        
+        top_prediction = pred_classes[0] if pred_classes else None
+        confidence_gap = 0
+        if len(pred_classes) >= 2:
+            confidence_gap = pred_classes[0]['confidence'] - pred_classes[1]['confidence']
+        
         return {
             'predictions': pred_classes,
+            'detectedMaterials': detected_materials,
+            'isMultiMaterial': is_multi_material,
+            'topPrediction': top_prediction,
+            'confidenceGap': confidence_gap,
+            'threshold': multi_material_threshold,
             'model': os.path.basename(model_path),
             'success': True
         }
@@ -101,10 +130,15 @@ def main():
     parser.add_argument('--image', required=True, help='Path to image file')
     parser.add_argument('--model', required=True, help='Path to model file')
     parser.add_argument('--labels', required=True, help='Path to labels JSON file')
+    parser.add_argument('--threshold', type=float, default=0.15, 
+                        help='Confidence threshold for multi-material detection (default: 0.15)')
+    parser.add_argument('--max-materials', type=int, default=5,
+                        help='Maximum number of materials to detect (default: 5)')
     
     args = parser.parse_args()
     
-    result = predict(args.image, args.model, args.labels)
+    result = predict(args.image, args.model, args.labels, 
+                     args.threshold, args.max_materials)
     
     print(json.dumps(result))
 

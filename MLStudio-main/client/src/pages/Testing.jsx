@@ -10,7 +10,9 @@ import {
   RefreshCw,
   CheckCircle,
   AlertCircle,
-  BarChart3
+  BarChart3,
+  Layers,
+  Settings2
 } from 'lucide-react';
 
 function Testing() {
@@ -22,6 +24,8 @@ function Testing() {
   const [imageFile, setImageFile] = useState(null);
   const [prediction, setPrediction] = useState(null);
   const [error, setError] = useState(null);
+  const [threshold, setThreshold] = useState(0.15);
+  const [showSettings, setShowSettings] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -79,6 +83,8 @@ function Testing() {
       const formData = new FormData();
       formData.append('image', imageFile);
       formData.append('modelId', selectedModel.id);
+      formData.append('threshold', threshold.toString());
+      formData.append('maxMaterials', '5');
 
       const response = await fetch('/api/predict', {
         method: 'POST',
@@ -139,7 +145,44 @@ function Testing() {
       ) : (
         <>
           <div className="card">
-            <h3 className="card-title" style={{ marginBottom: '16px' }}>Select Model to Test</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 className="card-title" style={{ margin: 0 }}>Select Model to Test</h3>
+              <button 
+                className={`btn ${showSettings ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => setShowSettings(!showSettings)}
+                style={{ padding: '8px 12px' }}
+              >
+                <Settings2 size={16} />
+                Settings
+              </button>
+            </div>
+            
+            {showSettings && (
+              <div style={{ 
+                padding: '16px', 
+                background: 'var(--bg-primary)', 
+                borderRadius: '8px',
+                marginBottom: '16px'
+              }}>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ color: '#f8fafc', fontWeight: '500', marginBottom: '8px', display: 'block' }}>
+                    Multi-Material Detection Threshold: {(threshold * 100).toFixed(0)}%
+                  </label>
+                  <input
+                    type="range"
+                    min="5"
+                    max="50"
+                    value={threshold * 100}
+                    onChange={(e) => setThreshold(parseInt(e.target.value) / 100)}
+                    style={{ width: '100%' }}
+                  />
+                  <div className="text-muted text-sm" style={{ marginTop: '4px' }}>
+                    Materials with confidence above this threshold will be detected. Lower values detect more materials.
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               {models.map(model => (
                 <button
@@ -264,43 +307,147 @@ function Testing() {
 
               {prediction && (
                 <div>
-                  <div style={{ 
-                    padding: '20px', 
-                    background: 'rgba(16, 185, 129, 0.1)', 
-                    borderRadius: '12px',
-                    marginBottom: '20px'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                      <CheckCircle size={24} color="#10b981" />
-                      <div>
-                        <div style={{ color: '#f8fafc', fontWeight: '600', fontSize: '18px' }}>
-                          {prediction.prediction.className.replace(/_/g, ' ')}
+                  {prediction.isMultiMaterial && (
+                    <div style={{ 
+                      padding: '16px', 
+                      background: 'rgba(139, 92, 246, 0.15)', 
+                      borderRadius: '12px',
+                      marginBottom: '16px',
+                      border: '1px solid rgba(139, 92, 246, 0.3)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                        <Layers size={20} color="#8b5cf6" />
+                        <div style={{ color: '#8b5cf6', fontWeight: '600', fontSize: '16px' }}>
+                          Multiple Materials Detected
                         </div>
-                        <div className="text-muted text-sm">Top Prediction</div>
+                      </div>
+                      <div className="text-muted text-sm">
+                        {prediction.detectedMaterials?.length || 0} materials found above {(threshold * 100).toFixed(0)}% confidence threshold
                       </div>
                     </div>
-                    
-                    <div style={{ 
-                      background: 'var(--bg-primary)', 
-                      borderRadius: '8px', 
-                      height: '12px', 
-                      overflow: 'hidden',
-                      marginBottom: '8px'
-                    }}>
-                      <div style={{ 
-                        width: `${prediction.prediction.confidence * 100}%`,
-                        height: '100%',
-                        background: 'linear-gradient(90deg, #10b981, #34d399)',
-                        borderRadius: '8px',
-                        transition: 'width 0.5s'
-                      }} />
-                    </div>
-                    <div style={{ fontSize: '24px', fontWeight: '700', color: '#10b981' }}>
-                      {(prediction.prediction.confidence * 100).toFixed(1)}% confidence
-                    </div>
-                  </div>
+                  )}
 
-                  {prediction.material && (
+                  {prediction.isMultiMaterial && prediction.detectedMaterials?.length > 0 && (
+                    <div style={{ marginBottom: '20px' }}>
+                      <h4 style={{ color: '#f8fafc', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Layers size={18} />
+                        Detected Materials ({prediction.detectedMaterials.length})
+                      </h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {prediction.detectedMaterials.map((mat, idx) => (
+                          <div 
+                            key={mat.class}
+                            style={{ 
+                              padding: '16px',
+                              background: idx === 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                              borderRadius: '12px',
+                              border: `1px solid ${idx === 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{ 
+                                  width: '28px', 
+                                  height: '28px', 
+                                  borderRadius: '50%', 
+                                  background: idx === 0 ? '#10b981' : '#3b82f6',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '12px',
+                                  fontWeight: '700',
+                                  color: 'white'
+                                }}>
+                                  {idx + 1}
+                                </div>
+                                <div>
+                                  <div style={{ color: '#f8fafc', fontWeight: '600', fontSize: '16px' }}>
+                                    {(mat.className || mat.class).replace(/_/g, ' ')}
+                                  </div>
+                                  {idx === 0 && <span className="text-muted text-sm">Primary Material</span>}
+                                </div>
+                              </div>
+                              <div style={{ 
+                                color: idx === 0 ? '#10b981' : '#3b82f6',
+                                fontWeight: '700',
+                                fontSize: '18px'
+                              }}>
+                                {(mat.confidence * 100).toFixed(1)}%
+                              </div>
+                            </div>
+                            
+                            <div style={{ 
+                              background: 'var(--bg-primary)', 
+                              borderRadius: '6px', 
+                              height: '8px', 
+                              overflow: 'hidden',
+                              marginBottom: '12px'
+                            }}>
+                              <div style={{ 
+                                width: `${mat.confidence * 100}%`,
+                                height: '100%',
+                                background: idx === 0 ? 'linear-gradient(90deg, #10b981, #34d399)' : 'linear-gradient(90deg, #3b82f6, #60a5fa)',
+                                borderRadius: '6px'
+                              }} />
+                            </div>
+                            
+                            {mat.material && (
+                              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <Zap size={14} color="#f97316" />
+                                  <span className="text-muted text-sm">{mat.material.embodiedEnergy} MJ/kg</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <Leaf size={14} color="#10b981" />
+                                  <span className="text-muted text-sm">{mat.material.embodiedCarbon} kgCO₂/kg</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {!prediction.isMultiMaterial && (
+                    <div style={{ 
+                      padding: '20px', 
+                      background: 'rgba(16, 185, 129, 0.1)', 
+                      borderRadius: '12px',
+                      marginBottom: '20px'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                        <CheckCircle size={24} color="#10b981" />
+                        <div>
+                          <div style={{ color: '#f8fafc', fontWeight: '600', fontSize: '18px' }}>
+                            {prediction.prediction.className.replace(/_/g, ' ')}
+                          </div>
+                          <div className="text-muted text-sm">Single Material Detected</div>
+                        </div>
+                      </div>
+                      
+                      <div style={{ 
+                        background: 'var(--bg-primary)', 
+                        borderRadius: '8px', 
+                        height: '12px', 
+                        overflow: 'hidden',
+                        marginBottom: '8px'
+                      }}>
+                        <div style={{ 
+                          width: `${prediction.prediction.confidence * 100}%`,
+                          height: '100%',
+                          background: 'linear-gradient(90deg, #10b981, #34d399)',
+                          borderRadius: '8px',
+                          transition: 'width 0.5s'
+                        }} />
+                      </div>
+                      <div style={{ fontSize: '24px', fontWeight: '700', color: '#10b981' }}>
+                        {(prediction.prediction.confidence * 100).toFixed(1)}% confidence
+                      </div>
+                    </div>
+                  )}
+
+                  {prediction.material && !prediction.isMultiMaterial && (
                     <div style={{ 
                       display: 'grid', 
                       gridTemplateColumns: 'repeat(2, 1fr)', 
@@ -326,7 +473,7 @@ function Testing() {
 
                   <h4 style={{ color: '#f8fafc', marginBottom: '12px' }}>All Predictions</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {prediction.allPredictions.map((p, idx) => (
+                    {prediction.allPredictions.slice(0, 5).map((p, idx) => (
                       <div 
                         key={p.class}
                         style={{ 
@@ -334,15 +481,16 @@ function Testing() {
                           alignItems: 'center', 
                           gap: '12px',
                           padding: '12px',
-                          background: idx === 0 ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-primary)',
-                          borderRadius: '8px'
+                          background: p.confidence >= threshold ? (idx === 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(59, 130, 246, 0.1)') : 'var(--bg-primary)',
+                          borderRadius: '8px',
+                          border: p.confidence >= threshold ? `1px solid ${idx === 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(59, 130, 246, 0.3)'}` : 'none'
                         }}
                       >
                         <div style={{ 
                           width: '24px', 
                           height: '24px', 
                           borderRadius: '50%', 
-                          background: idx === 0 ? '#10b981' : '#475569',
+                          background: p.confidence >= threshold ? (idx === 0 ? '#10b981' : '#3b82f6') : '#475569',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -366,13 +514,13 @@ function Testing() {
                             <div style={{ 
                               width: `${p.confidence * 100}%`,
                               height: '100%',
-                              background: idx === 0 ? '#10b981' : '#3b82f6',
+                              background: p.confidence >= threshold ? (idx === 0 ? '#10b981' : '#3b82f6') : '#475569',
                               borderRadius: '2px'
                             }} />
                           </div>
                         </div>
                         <div style={{ 
-                          color: idx === 0 ? '#10b981' : '#94a3b8',
+                          color: p.confidence >= threshold ? (idx === 0 ? '#10b981' : '#3b82f6') : '#94a3b8',
                           fontWeight: '600',
                           minWidth: '60px',
                           textAlign: 'right'
@@ -396,7 +544,8 @@ function Testing() {
                     <div className="text-muted text-sm">
                       <div>Model: {prediction.modelName}</div>
                       <div>Model Accuracy: {(prediction.analysis.modelAccuracy * 100).toFixed(1)}%</div>
-                      <div>Image Size: {prediction.analysis.imageSize.width}x{prediction.analysis.imageSize.height}</div>
+                      <div>Detection Threshold: {(prediction.analysis.threshold * 100).toFixed(0)}%</div>
+                      <div>Materials Detected: {prediction.analysis.materialsDetected}</div>
                     </div>
                   </div>
 

@@ -233,8 +233,9 @@ function Datasets() {
     try {
       const params = new URLSearchParams({
         q: scrapeQuery.trim(),
-        count: '30',
-        materialKey: materialKey
+        count: '100',
+        materialKey: materialKey,
+        filterExisting: 'true'
       });
       const response = await fetch(`/api/image-scrape/search?${params}`);
       const data = await response.json();

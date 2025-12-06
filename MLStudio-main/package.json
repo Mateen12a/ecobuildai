@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd server && node server.js",
-    "client": "npx vite --port 3001 --host 0.0.0.0",
+    "client": "npx vite --port 3002 --host 0.0.0.0",
+    "build": "npx vite build",
+    "start": "NODE_ENV=production node server/server.js",
     "install:all": "npm install && cd server && npm install && cd ../client && npm install"
   },
   "dependencies": {

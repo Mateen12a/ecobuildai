@@ -113,7 +113,29 @@ function Training() {
             updated.metrics = {
               ...(updated.metrics || {}),
               lastBatchLoss: data.loss,
-              lastBatchAccuracy: data.accuracy
+              lastBatchAccuracy: data.accuracy,
+              batchProgress: data.batch_progress
+            };
+
+            const copy = [...prev];
+            copy[idx] = updated;
+            return copy;
+          });
+        }
+
+        // Handle phase updates for multi-phase training
+        if (data.type === 'training_phase' && data.modelId) {
+          setTrainingHistory(prev => {
+            const idx = prev.findIndex(r => r.id === data.modelId);
+            if (idx === -1) return prev;
+
+            const updated = { ...prev[idx] };
+            updated.metrics = {
+              ...(updated.metrics || {}),
+              phaseName: data.phaseName,
+              phaseNumber: data.phaseNumber,
+              totalPhases: data.totalPhases,
+              phaseEpoch: data.phaseEpoch
             };
 
             const copy = [...prev];
