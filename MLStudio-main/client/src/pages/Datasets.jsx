@@ -16,7 +16,8 @@ import {
   X,
   Check,
   ExternalLink,
-  Info
+  Info,
+  Plus
 } from 'lucide-react';
 
 function Datasets() {
@@ -37,6 +38,8 @@ function Datasets() {
   const [scrapeResults, setScrapeResults] = useState([]);
   const [selectedScrapeImages, setSelectedScrapeImages] = useState(new Set());
   const [searching, setSearching] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [addingImages, setAddingImages] = useState(false);
   const [targetMaterial, setTargetMaterial] = useState('');
   const [searchError, setSearchError] = useState('');
@@ -213,7 +216,7 @@ function Datasets() {
     }
   };
 
-  const searchImages = async () => {
+  const searchImages = async (page = 1, append = false) => {
     const materialKey = targetMaterial || selectedClass?.id;
     if (!materialKey) {
       setSearchError('Please select a material class first');
@@ -225,9 +228,14 @@ function Datasets() {
       return;
     }
     
-    setSearching(true);
-    setScrapeResults([]);
-    setSelectedScrapeImages(new Set());
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setSearching(true);
+      setScrapeResults([]);
+      setSelectedScrapeImages(new Set());
+      setCurrentPage(1);
+    }
     setSearchError('');
     
     try {
@@ -235,7 +243,8 @@ function Datasets() {
         q: scrapeQuery.trim(),
         count: '100',
         materialKey: materialKey,
-        filterExisting: 'true'
+        filterExisting: 'true',
+        page: page.toString()
       });
       const response = await fetch(`/api/image-scrape/search?${params}`);
       const data = await response.json();
@@ -246,8 +255,16 @@ function Datasets() {
       }
       
       if (data.results && data.results.length > 0) {
-        setScrapeResults(data.results);
-      } else {
+        if (append) {
+          const existingIds = new Set(scrapeResults.map(r => r.id));
+          const newResults = data.results.filter(r => !existingIds.has(r.id));
+          setScrapeResults(prev => [...prev, ...newResults]);
+          setCurrentPage(page);
+        } else {
+          setScrapeResults(data.results);
+          setCurrentPage(1);
+        }
+      } else if (!append) {
         setSearchError('No images found. Try a different search term.');
       }
     } catch (error) {
@@ -255,7 +272,12 @@ function Datasets() {
       setSearchError('Failed to search images. Please try again.');
     } finally {
       setSearching(false);
+      setLoadingMore(false);
     }
+  };
+
+  const loadMoreImages = () => {
+    searchImages(currentPage + 1, true);
   };
 
   const toggleScrapeImageSelection = (imageId) => {
@@ -495,7 +517,7 @@ function Datasets() {
                     setScrapeQuery(e.target.value);
                     setSearchError('');
                   }}
-                  onKeyDown={(e) => e.key === 'Enter' && !searching && searchImages()}
+                  onKeyDown={(e) => e.key === 'Enter' && !searching && searchImages(1, false)}
                   placeholder="Search for material images..."
                   className="input"
                   style={{ flex: 1 }}
@@ -504,7 +526,7 @@ function Datasets() {
                 />
                 <button 
                   className="btn btn-primary"
-                  onClick={searchImages}
+                  onClick={() => searchImages(1, false)}
                   disabled={searching || !scrapeQuery.trim()}
                   data-testid="button-search-images"
                 >
@@ -647,6 +669,28 @@ function Datasets() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                  
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    marginTop: '24px',
+                    paddingTop: '16px',
+                    borderTop: '1px solid var(--border-color)'
+                  }}>
+                    <button 
+                      className="btn btn-outline"
+                      onClick={loadMoreImages}
+                      disabled={loadingMore || searching}
+                      data-testid="button-load-more"
+                      style={{ minWidth: '200px' }}
+                    >
+                      {loadingMore ? (
+                        <><Loader size={16} className="spinning" /> Loading more...</>
+                      ) : (
+                        <><Plus size={16} /> Load More Images</>
+                      )}
+                    </button>
                   </div>
                 </>
               )}

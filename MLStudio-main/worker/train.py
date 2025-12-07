@@ -26,23 +26,36 @@ try:
     import tensorflow as tf
     from tensorflow import keras
     from tensorflow.keras import layers, models, optimizers, callbacks, regularizers
-    from tensorflow.keras.applications import EfficientNetB0, MobileNetV2
+    from tensorflow.keras.applications import EfficientNetB0, MobileNetV2, EfficientNetB2
     from tensorflow.keras.applications.efficientnet import preprocess_input as efficientnet_preprocess
     from tensorflow.keras.applications.mobilenet_v2 import preprocess_input as mobilenet_preprocess
-    from tensorflow.keras.preprocessing.image import ImageDataGenerator
     from sklearn.preprocessing import LabelEncoder
     from sklearn.utils import class_weight
     from sklearn.model_selection import train_test_split
-    from PIL import Image, ImageEnhance, ImageFilter
+    from PIL import Image, ImageEnhance, ImageFilter, ImageOps
     from pymongo import MongoClient
+    
+    tf.get_logger().setLevel('ERROR')
+    
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+        log_message(f"Found {len(gpus)} GPU(s) available")
+    else:
+        log_message("No GPU found, using CPU (training will be slower)")
+    
+    try:
+        tf.keras.mixed_precision.set_global_policy('mixed_float16')
+        log_message("Using mixed precision training for faster performance")
+    except Exception as e:
+        log_message(f"Mixed precision not available: {e}", level='warning')
+    
     TF_AVAILABLE = True
     log_message("TensorFlow and dependencies loaded successfully")
 except ImportError as e:
-    log_message(f"TensorFlow/dependencies not available: {str(e)}",
-                level='error')
-    log_message(
-        "Install with: pip install tensorflow pymongo scikit-learn pillow",
-        level='error')
+    log_message(f"TensorFlow/dependencies not available: {str(e)}", level='error')
+    log_message("Install with: pip install tensorflow pymongo scikit-learn pillow", level='error')
 
 
 class TrainingCallback(keras.callbacks.Callback):
@@ -71,12 +84,10 @@ class TrainingCallback(keras.callbacks.Callback):
         log_message(f"[{self.phase_name}] Starting epoch {epoch + 1}/{self.total_epochs}")
 
     def on_train_begin(self, logs=None):
-        # try to discover steps per epoch (Keras provides in params)
         try:
             params = getattr(self, 'params', {})
             steps = params.get('steps') or params.get('samples')
             if steps and params.get('batch_size'):
-                # if samples provided, compute steps
                 if not params.get('steps') and params.get('samples'):
                     self.steps_per_epoch = max(1, int(params.get('samples') / params.get('batch_size')))
                 else:
@@ -86,7 +97,6 @@ class TrainingCallback(keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs=None):
         logs = logs or {}
-        # increment global epoch counter and emit global epoch index
         self.global_epoch += 1
         log_event("epoch_end",
                   epoch=self.global_epoch,
@@ -97,10 +107,8 @@ class TrainingCallback(keras.callbacks.Callback):
                   val_accuracy=float(logs.get('val_accuracy', 0)))
 
     def on_batch_end(self, batch, logs=None):
-        # Report progress every 5 batches for more granular updates
         if batch % 5 == 0:
             logs = logs or {}
-            # Calculate overall progress percentage
             batch_progress = 0
             if self.steps_per_epoch and self.steps_per_epoch > 0:
                 batch_progress = min(100, int((batch / self.steps_per_epoch) * 100))
@@ -115,28 +123,52 @@ class TrainingCallback(keras.callbacks.Callback):
                       accuracy=float(logs.get('accuracy', 0)))
 
 
-def advanced_augment_image(img_array):
-    """Apply advanced augmentation to a single image"""
+def create_augmentation_layer():
+    return keras.Sequential([
+        layers.RandomFlip("horizontal"),
+        layers.RandomRotation(0.15),
+        layers.RandomZoom(0.15),
+        layers.RandomContrast(0.15),
+        layers.RandomBrightness(0.1),
+        layers.RandomTranslation(0.1, 0.1),
+    ], name="augmentation")
+
+
+def advanced_augment_image(img_array, augmentation_strength=1.0):
     img = Image.fromarray((img_array * 127.5 + 127.5).astype(np.uint8))
     
-    if random.random() > 0.5:
+    if random.random() > 0.4:
+        factor = random.uniform(0.6, 1.4) * augmentation_strength
         enhancer = ImageEnhance.Brightness(img)
-        img = enhancer.enhance(random.uniform(0.7, 1.3))
+        img = enhancer.enhance(max(0.3, min(2.0, factor)))
     
-    if random.random() > 0.5:
+    if random.random() > 0.4:
+        factor = random.uniform(0.6, 1.4) * augmentation_strength
         enhancer = ImageEnhance.Contrast(img)
-        img = enhancer.enhance(random.uniform(0.7, 1.3))
+        img = enhancer.enhance(max(0.3, min(2.0, factor)))
     
     if random.random() > 0.5:
+        factor = random.uniform(0.7, 1.3)
         enhancer = ImageEnhance.Color(img)
-        img = enhancer.enhance(random.uniform(0.8, 1.2))
+        img = enhancer.enhance(factor)
     
-    if random.random() > 0.7:
-        img = img.filter(ImageFilter.GaussianBlur(radius=random.uniform(0.5, 1.5)))
+    if random.random() > 0.5:
+        factor = random.uniform(0.8, 1.5)
+        enhancer = ImageEnhance.Sharpness(img)
+        img = enhancer.enhance(factor)
     
     if random.random() > 0.8:
-        enhancer = ImageEnhance.Sharpness(img)
-        img = enhancer.enhance(random.uniform(0.8, 2.0))
+        img = img.filter(ImageFilter.GaussianBlur(radius=random.uniform(0.3, 1.0)))
+    
+    if random.random() > 0.9:
+        img = ImageOps.posterize(img, random.randint(4, 7))
+    
+    if random.random() > 0.85:
+        img = ImageOps.solarize(img, random.randint(128, 200))
+    
+    if random.random() > 0.7:
+        angle = random.uniform(-20, 20)
+        img = img.rotate(angle, fillcolor=(128, 128, 128))
     
     img_array = np.array(img).astype(np.float32)
     img_array = (img_array - 127.5) / 127.5
@@ -144,57 +176,57 @@ def advanced_augment_image(img_array):
     return img_array
 
 
-def create_improved_model(num_classes, input_shape=(224, 224, 3), use_efficientnet=True):
-    """Create an improved model with better regularization"""
-    
-    if use_efficientnet:
+def create_improved_model(num_classes, input_shape=(224, 224, 3), model_size='small'):
+    if model_size == 'large' and num_classes > 5:
+        base_model = EfficientNetB2(
+            input_shape=input_shape,
+            include_top=False,
+            weights='imagenet'
+        )
+        log_message("Using EfficientNetB2 for larger dataset")
+    else:
         base_model = EfficientNetB0(
             input_shape=input_shape,
             include_top=False,
             weights='imagenet'
         )
-        preprocess_fn = efficientnet_preprocess
-    else:
-        base_model = MobileNetV2(
-            input_shape=input_shape,
-            include_top=False,
-            weights='imagenet'
-        )
-        preprocess_fn = mobilenet_preprocess
+        log_message("Using EfficientNetB0 base model")
     
     base_model.trainable = False
     
     inputs = keras.Input(shape=input_shape)
     
-    x = base_model(inputs, training=False)
+    x = keras.layers.Rescaling(1./127.5, offset=-1)(inputs)
+    
+    x = base_model(x, training=False)
     
     x = layers.GlobalAveragePooling2D()(x)
     
     x = layers.BatchNormalization()(x)
-    x = layers.Dense(512, kernel_regularizer=regularizers.l2(0.01))(x)
-    x = layers.Activation('relu')(x)
-    x = layers.Dropout(0.5)(x)
-    
-    x = layers.BatchNormalization()(x)
-    x = layers.Dense(256, kernel_regularizer=regularizers.l2(0.01))(x)
-    x = layers.Activation('relu')(x)
+    x = layers.Dense(512, kernel_regularizer=regularizers.l2(0.001))(x)
+    x = layers.Activation('swish')(x)
     x = layers.Dropout(0.4)(x)
     
     x = layers.BatchNormalization()(x)
-    x = layers.Dense(128, kernel_regularizer=regularizers.l2(0.01))(x)
-    x = layers.Activation('relu')(x)
+    x = layers.Dense(256, kernel_regularizer=regularizers.l2(0.001))(x)
+    x = layers.Activation('swish')(x)
     x = layers.Dropout(0.3)(x)
     
-    outputs = layers.Dense(num_classes, activation='softmax', 
-                          kernel_regularizer=regularizers.l2(0.01))(x)
+    if num_classes > 5:
+        x = layers.BatchNormalization()(x)
+        x = layers.Dense(128, kernel_regularizer=regularizers.l2(0.001))(x)
+        x = layers.Activation('swish')(x)
+        x = layers.Dropout(0.2)(x)
+    
+    outputs = layers.Dense(num_classes, activation='softmax', dtype='float32',
+                          kernel_regularizer=regularizers.l2(0.001))(x)
     
     model = keras.Model(inputs, outputs)
     
-    return model, base_model, preprocess_fn
+    return model, base_model
 
 
 def create_segmentation_model(num_classes, input_shape=(224, 224, 3)):
-    """Create segmentation model with improved architecture"""
     base_model = MobileNetV2(input_shape=input_shape,
                              include_top=False,
                              weights='imagenet')
@@ -251,9 +283,13 @@ def load_data_from_mongo(mongo_uri, image_size=(224, 224)):
 
             img = Image.open(io.BytesIO(img_data))
             img = img.convert('RGB')
+            
+            if img.size[0] < 50 or img.size[1] < 50:
+                log_message(f"Skipping small image: {doc.get('filename', 'unknown')}", level='warning')
+                continue
+            
             img = img.resize(image_size, Image.Resampling.LANCZOS)
-            img_array = np.array(img).astype(np.float32)
-            img_array = (img_array - 127.5) / 127.5
+            img_array = np.array(img).astype(np.float32) / 255.0
 
             X.append(img_array)
             label = doc.get('material_key', doc.get('material_official', 'unknown'))
@@ -276,78 +312,108 @@ def load_data_from_mongo(mongo_uri, image_size=(224, 224)):
     for label, count in zip(unique, counts):
         log_message(f"  Class '{label}': {count} samples")
     
+    min_samples = min(counts)
+    if min_samples < 10:
+        log_message(f"WARNING: Some classes have fewer than 10 samples. Consider adding more images.", level='warning')
+    
     return X, y_labels, filenames
 
 
-def mixup_data(X, y, alpha=0.2):
-    """Apply mixup augmentation to training data"""
-    if alpha > 0:
-        lam = np.random.beta(alpha, alpha)
-    else:
-        lam = 1
+def balance_dataset(X, y_labels, target_samples_per_class=None):
+    unique, counts = np.unique(y_labels, return_counts=True)
     
-    batch_size = len(X)
-    index = np.random.permutation(batch_size)
+    if target_samples_per_class is None:
+        target_samples_per_class = max(counts)
     
-    mixed_X = lam * X + (1 - lam) * X[index]
-    mixed_y = lam * y + (1 - lam) * y[index]
+    log_message(f"Balancing dataset to {target_samples_per_class} samples per class")
     
-    return mixed_X, mixed_y
-
-
-def augment_dataset(X, y, augmentation_factor=3):
-    """Augment the dataset by creating additional samples with enhanced techniques"""
-    log_message(f"Augmenting dataset by factor of {augmentation_factor}...")
+    X_balanced = []
+    y_balanced = []
     
-    X_augmented = [X]
-    y_augmented = [y]
-    
-    # Enhanced data augmentation parameters
-    datagen = ImageDataGenerator(
-        rotation_range=45,
-        width_shift_range=0.3,
-        height_shift_range=0.3,
-        shear_range=0.25,
-        zoom_range=0.3,
-        horizontal_flip=True,
-        vertical_flip=False,
-        brightness_range=[0.6, 1.4],
-        channel_shift_range=30,
-        fill_mode='nearest'
-    )
-    
-    for i in range(augmentation_factor - 1):
-        X_aug = np.zeros_like(X)
-        for j in range(len(X)):
-            img = X[j:j+1]
-            img_normalized = (img + 1) * 127.5
-            augmented = datagen.random_transform(img_normalized[0])
-            # Apply additional PIL augmentation for some samples
-            if random.random() > 0.5:
-                augmented = np.clip(augmented, 0, 255)
-                pil_img = Image.fromarray(augmented.astype(np.uint8))
-                # Random color jitter
+    for label in unique:
+        mask = y_labels == label
+        X_class = X[mask]
+        n_samples = len(X_class)
+        
+        if n_samples >= target_samples_per_class:
+            indices = np.random.choice(n_samples, target_samples_per_class, replace=False)
+        else:
+            indices_original = np.arange(n_samples)
+            indices_augmented = np.random.choice(n_samples, target_samples_per_class - n_samples, replace=True)
+            indices = np.concatenate([indices_original, indices_augmented])
+        
+        for idx in indices:
+            img = X_class[idx % n_samples]
+            if idx >= n_samples:
+                img_normalized = (img * 255).astype(np.uint8)
+                img_pil = Image.fromarray(img_normalized)
+                
                 if random.random() > 0.5:
-                    enhancer = ImageEnhance.Color(pil_img)
-                    pil_img = enhancer.enhance(random.uniform(0.8, 1.2))
-                # Random sharpness
-                if random.random() > 0.7:
-                    enhancer = ImageEnhance.Sharpness(pil_img)
-                    pil_img = enhancer.enhance(random.uniform(0.8, 1.5))
-                augmented = np.array(pil_img).astype(np.float32)
-            X_aug[j] = (augmented - 127.5) / 127.5
-        X_augmented.append(X_aug)
-        y_augmented.append(y)
+                    img_pil = ImageOps.mirror(img_pil)
+                if random.random() > 0.5:
+                    angle = random.uniform(-15, 15)
+                    img_pil = img_pil.rotate(angle, fillcolor=(128, 128, 128))
+                if random.random() > 0.5:
+                    enhancer = ImageEnhance.Brightness(img_pil)
+                    img_pil = enhancer.enhance(random.uniform(0.8, 1.2))
+                if random.random() > 0.5:
+                    enhancer = ImageEnhance.Contrast(img_pil)
+                    img_pil = enhancer.enhance(random.uniform(0.8, 1.2))
+                
+                img = np.array(img_pil).astype(np.float32) / 255.0
+            
+            X_balanced.append(img)
+            y_balanced.append(label)
     
-    X_final = np.concatenate(X_augmented, axis=0)
-    y_final = np.concatenate(y_augmented, axis=0)
+    X_balanced = np.array(X_balanced)
+    y_balanced = np.array(y_balanced)
     
-    indices = np.random.permutation(len(X_final))
-    X_final = X_final[indices]
-    y_final = y_final[indices]
+    indices = np.random.permutation(len(X_balanced))
+    return X_balanced[indices], y_balanced[indices]
+
+
+def create_tf_dataset(X, y, batch_size, augment=False, shuffle=True):
+    dataset = tf.data.Dataset.from_tensor_slices((X, y))
     
-    log_message(f"Augmented dataset size: {len(X_final)} samples")
-    return X_final, y_final
+    if shuffle:
+        dataset = dataset.shuffle(buffer_size=min(len(X), 10000), reshuffle_each_iteration=True)
+    
+    if augment:
+        augmentation = create_augmentation_layer()
+        def augment_fn(image, label):
+            image = augmentation(image, training=True)
+            return image, label
+        dataset = dataset.map(augment_fn, num_parallel_calls=tf.data.AUTOTUNE)
+    
+    dataset = dataset.batch(batch_size)
+    dataset = dataset.prefetch(tf.data.AUTOTUNE)
+    
+    return dataset
+
+
+def cosine_decay_with_warmup(epoch, total_epochs, warmup_epochs, initial_lr, min_lr):
+    if epoch < warmup_epochs:
+        return initial_lr * (epoch + 1) / warmup_epochs
+    else:
+        progress = (epoch - warmup_epochs) / (total_epochs - warmup_epochs)
+        return min_lr + 0.5 * (initial_lr - min_lr) * (1 + np.cos(np.pi * progress))
+
+
+class WarmupCosineDecay(keras.callbacks.Callback):
+    def __init__(self, initial_lr, total_epochs, warmup_epochs=5, min_lr=1e-7):
+        super().__init__()
+        self.initial_lr = initial_lr
+        self.total_epochs = total_epochs
+        self.warmup_epochs = warmup_epochs
+        self.min_lr = min_lr
+    
+    def on_epoch_begin(self, epoch, logs=None):
+        lr = cosine_decay_with_warmup(
+            epoch, self.total_epochs, self.warmup_epochs, 
+            self.initial_lr, self.min_lr
+        )
+        keras.backend.set_value(self.model.optimizer.learning_rate, lr)
+        log_message(f"Learning rate: {lr:.2e}")
 
 
 def train_model(args):
@@ -361,16 +427,14 @@ def train_model(args):
     X, y_labels, filenames = load_data_from_mongo(args.mongo_uri)
 
     if len(X) < 10:
-        log_message("Not enough samples for training (minimum 10 required)",
-                    level='error')
+        log_message("Not enough samples for training (minimum 10 required)", level='error')
         sys.exit(1)
 
     unique_classes = np.unique(y_labels)
     num_classes = len(unique_classes)
 
     if num_classes < 2:
-        log_message("At least 2 classes are required for training",
-                    level='error')
+        log_message("At least 2 classes are required for training", level='error')
         sys.exit(1)
 
     log_message(f"Training with {num_classes} classes: {list(unique_classes)}")
@@ -385,47 +449,55 @@ def train_model(args):
         X, y, test_size=args.validation_split, stratify=y, random_state=42
     )
     
-    log_message(f"Train set: {len(X_train)} samples, Validation set: {len(X_val)} samples")
+    log_message(f"Initial train set: {len(X_train)} samples, Validation set: {len(X_val)} samples")
 
-    augmentation_factor = max(3, 500 // len(X_train))
-    augmentation_factor = min(augmentation_factor, 5)
-    X_train_aug, y_train_aug = augment_dataset(X_train, y_train, augmentation_factor)
+    train_unique, train_counts = np.unique(y_train, return_counts=True)
+    max_samples = max(train_counts)
+    target_samples = min(max_samples * 2, max(150, max_samples))
     
-    y_train_cat = tf.keras.utils.to_categorical(y_train_aug, num_classes)
+    y_train_labels = le.inverse_transform(y_train)
+    X_train_balanced, y_train_balanced_labels = balance_dataset(X_train, y_train_labels, target_samples)
+    y_train_balanced = le.transform(y_train_balanced_labels)
+    
+    log_message(f"Balanced training set: {len(X_train_balanced)} samples")
+
+    y_train_cat = tf.keras.utils.to_categorical(y_train_balanced, num_classes)
     y_val_cat = tf.keras.utils.to_categorical(y_val, num_classes)
 
     cw = class_weight.compute_class_weight("balanced",
-                                           classes=np.unique(y_train_aug),
-                                           y=y_train_aug)
+                                           classes=np.unique(y_train_balanced),
+                                           y=y_train_balanced)
     class_weights = {i: float(w) for i, w in enumerate(cw)}
     log_message(f"Class weights: {class_weights}")
 
     enable_seg = args.enable_segmentation.lower() == 'true'
-    log_message(f"Creating improved model (Segmentation: {enable_seg})...")
+    model_size = 'large' if len(X) > 200 and num_classes > 5 else 'small'
+    log_message(f"Creating improved model (Segmentation: {enable_seg}, Size: {model_size})...")
     
     if enable_seg:
         model, base_model = create_segmentation_model(num_classes)
-        preprocess_fn = mobilenet_preprocess
     else:
-        model, base_model, preprocess_fn = create_improved_model(num_classes, use_efficientnet=True)
+        model, base_model = create_improved_model(num_classes, model_size=model_size)
 
-    # Use label smoothing for better generalization
-    label_smoothing = 0.1
+    label_smoothing = 0.15
+    
     model.compile(
-        optimizer=optimizers.Adam(learning_rate=args.learning_rate),
+        optimizer=optimizers.AdamW(learning_rate=args.learning_rate, weight_decay=1e-5),
         loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=label_smoothing),
         metrics=['accuracy']
     )
-    log_message(f"Using label smoothing: {label_smoothing}")
+    log_message(f"Using label smoothing: {label_smoothing}, weight decay: 1e-5")
 
     log_message(f"Model compiled with {model.count_params():,} parameters")
 
     model_dir = Path(f"./data/models/{args.model_id}")
     model_dir.mkdir(parents=True, exist_ok=True)
 
-    total_epochs = args.epochs + max(10, args.epochs // 2)
+    phase1_epochs = args.epochs
+    phase2_epochs = max(10, args.epochs // 2)
+    phase3_epochs = max(5, args.epochs // 4)
+    total_epochs = phase1_epochs + phase2_epochs + phase3_epochs
     
-    # Create training callback with phase tracking
     training_progress_callback = TrainingCallback(
         total_epochs, 
         phase_name="Feature Extraction", 
@@ -433,27 +505,29 @@ def train_model(args):
         total_phases=3
     )
     
-    training_callbacks = [
+    warmup_lr_callback = WarmupCosineDecay(
+        initial_lr=args.learning_rate,
+        total_epochs=phase1_epochs,
+        warmup_epochs=3,
+        min_lr=1e-7
+    )
+    
+    base_callbacks = [
         training_progress_callback,
         callbacks.EarlyStopping(
             monitor='val_accuracy',
-            patience=8,
+            patience=12,
             restore_best_weights=True,
             verbose=1,
-            min_delta=0.001
-        ),
-        callbacks.ReduceLROnPlateau(
-            monitor='val_loss',
-            factor=0.3,
-            patience=4,
-            min_lr=1e-8,
-            verbose=1
+            min_delta=0.002,
+            mode='max'
         ),
         callbacks.ModelCheckpoint(
             str(model_dir / 'best_model.keras'),
             monitor='val_accuracy',
             save_best_only=True,
-            verbose=1
+            verbose=1,
+            mode='max'
         )
     ]
 
@@ -461,13 +535,15 @@ def train_model(args):
     log_message("PHASE 1: Training classification head with frozen base")
     log_message("=" * 50)
 
+    train_dataset = create_tf_dataset(X_train_balanced, y_train_cat, args.batch_size, augment=True)
+    val_dataset = create_tf_dataset(X_val, y_val_cat, args.batch_size, augment=False, shuffle=False)
+
     history1 = model.fit(
-        X_train_aug, y_train_cat,
-        epochs=args.epochs,
-        batch_size=args.batch_size,
-        validation_data=(X_val, y_val_cat),
+        train_dataset,
+        epochs=phase1_epochs,
+        validation_data=val_dataset,
         class_weight=class_weights,
-        callbacks=training_callbacks,
+        callbacks=base_callbacks + [warmup_lr_callback],
         verbose=1
     )
 
@@ -478,72 +554,87 @@ def train_model(args):
     log_message("PHASE 2: Fine-tuning top layers of base model")
     log_message("=" * 50)
     
-    # Update phase tracking
     training_progress_callback.set_phase("Fine-tuning", 2)
 
     base_model.trainable = True
     
     if hasattr(base_model, 'layers'):
         num_layers = len(base_model.layers)
-        freeze_until = int(num_layers * 0.7)
+        freeze_until = int(num_layers * 0.75)
         for layer in base_model.layers[:freeze_until]:
             layer.trainable = False
         log_message(f"Unfroze {num_layers - freeze_until} of {num_layers} layers")
 
+    fine_tune_lr = args.learning_rate * 0.1
     model.compile(
-        optimizer=optimizers.Adam(learning_rate=args.learning_rate * 0.1),
+        optimizer=optimizers.AdamW(learning_rate=fine_tune_lr, weight_decay=1e-5),
         loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=label_smoothing),
         metrics=['accuracy']
     )
 
-    fine_tune_epochs = max(10, args.epochs // 2)
+    phase2_warmup = WarmupCosineDecay(
+        initial_lr=fine_tune_lr,
+        total_epochs=phase2_epochs,
+        warmup_epochs=2,
+        min_lr=1e-8
+    )
     
     history2 = model.fit(
-        X_train_aug, y_train_cat,
-        epochs=fine_tune_epochs,
-        batch_size=args.batch_size,
-        validation_data=(X_val, y_val_cat),
+        train_dataset,
+        epochs=phase2_epochs,
+        validation_data=val_dataset,
         class_weight=class_weights,
-        callbacks=training_callbacks,
+        callbacks=base_callbacks + [phase2_warmup],
         verbose=1
     )
 
     best_val_acc_phase2 = max(history2.history.get('val_accuracy', [0]))
     log_message(f"Phase 2 complete. Best val accuracy: {best_val_acc_phase2:.4f}")
 
-    log_message("=" * 50)
-    log_message("PHASE 3: Fine-tuning with even lower learning rate")
-    log_message("=" * 50)
-    
-    # Update phase tracking
-    training_progress_callback.set_phase("Deep Fine-tuning", 3)
+    if best_val_acc_phase2 > 0.5:
+        log_message("=" * 50)
+        log_message("PHASE 3: Deep fine-tuning with very low learning rate")
+        log_message("=" * 50)
+        
+        training_progress_callback.set_phase("Deep Fine-tuning", 3)
 
-    if hasattr(base_model, 'layers'):
-        freeze_until = int(num_layers * 0.5)
-        for layer in base_model.layers[:freeze_until]:
-            layer.trainable = False
-        for layer in base_model.layers[freeze_until:]:
-            layer.trainable = True
-        log_message(f"Unfroze more layers: {num_layers - freeze_until} of {num_layers}")
+        if hasattr(base_model, 'layers'):
+            freeze_until = int(num_layers * 0.5)
+            for layer in base_model.layers[:freeze_until]:
+                layer.trainable = False
+            for layer in base_model.layers[freeze_until:]:
+                layer.trainable = True
+            log_message(f"Unfroze more layers: {num_layers - freeze_until} of {num_layers}")
 
-    model.compile(
-        optimizer=optimizers.Adam(learning_rate=args.learning_rate * 0.01),
-        loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=label_smoothing),
-        metrics=['accuracy']
-    )
+        deep_fine_tune_lr = args.learning_rate * 0.01
+        model.compile(
+            optimizer=optimizers.AdamW(learning_rate=deep_fine_tune_lr, weight_decay=1e-6),
+            loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=label_smoothing * 0.5),
+            metrics=['accuracy']
+        )
 
-    history3 = model.fit(
-        X_train_aug, y_train_cat,
-        epochs=fine_tune_epochs // 2,
-        batch_size=args.batch_size,
-        validation_data=(X_val, y_val_cat),
-        class_weight=class_weights,
-        callbacks=training_callbacks,
-        verbose=1
-    )
+        phase3_warmup = WarmupCosineDecay(
+            initial_lr=deep_fine_tune_lr,
+            total_epochs=phase3_epochs,
+            warmup_epochs=1,
+            min_lr=1e-9
+        )
+        
+        history3 = model.fit(
+            train_dataset,
+            epochs=phase3_epochs,
+            validation_data=val_dataset,
+            class_weight=class_weights,
+            callbacks=base_callbacks + [phase3_warmup],
+            verbose=1
+        )
+    else:
+        log_message("Skipping phase 3 - accuracy still below threshold", level='warning')
+        history3 = type('obj', (object,), {'history': {'accuracy': [], 'val_accuracy': [], 'loss': [], 'val_loss': []}})()
 
+    best_model = keras.models.load_model(str(model_dir / 'best_model.keras'))
     final_model_path = model_dir / 'model.keras'
-    model.save(str(final_model_path))
+    best_model.save(str(final_model_path))
     log_message(f"Model saved to {final_model_path}")
 
     labels_path = model_dir / 'labels.json'
@@ -552,10 +643,10 @@ def train_model(args):
     log_message(f"Labels saved to {labels_path}")
 
     log_message("Evaluating model on validation set...")
-    val_loss, val_accuracy = model.evaluate(X_val, y_val_cat, verbose=0)
+    val_loss, val_accuracy = best_model.evaluate(X_val, y_val_cat, verbose=0)
     log_message(f"Final validation accuracy: {val_accuracy:.4f}")
 
-    val_predictions = model.predict(X_val, verbose=0)
+    val_predictions = best_model.predict(X_val, verbose=0)
     val_pred_classes = np.argmax(val_predictions, axis=1)
 
     from sklearn.metrics import confusion_matrix, classification_report, precision_score, recall_score, f1_score
@@ -607,10 +698,9 @@ def train_model(args):
         'num_classes': num_classes,
         'class_indices': labels_map,
         'input_shape': [224, 224, 3],
-        'training_samples': len(X_train_aug),
+        'training_samples': len(X_train_balanced),
         'original_samples': len(X),
         'validation_samples': len(X_val),
-        'augmentation_factor': augmentation_factor,
         'final_accuracy': float(final_accuracy),
         'final_val_accuracy': float(best_val_accuracy),
         'precision': float(precision),
@@ -622,7 +712,10 @@ def train_model(args):
         'training_config': {
             'batch_size': args.batch_size,
             'initial_learning_rate': args.learning_rate,
-            'validation_split': args.validation_split
+            'validation_split': args.validation_split,
+            'label_smoothing': label_smoothing,
+            'optimizer': 'AdamW',
+            'data_augmentation': 'tf.keras.layers + PIL advanced'
         }
     }
 
@@ -631,38 +724,33 @@ def train_model(args):
 
     log_message("All training artifacts saved successfully!")
 
-    if best_val_accuracy < 0.5:
-        log_message("WARNING: Model accuracy is below 50%. Consider adding more training data.", level='warning')
-    elif best_val_accuracy < 0.7:
-        log_message("Model accuracy is moderate. Adding more diverse training data may help.", level='info')
-    elif best_val_accuracy < 0.85:
-        log_message("Model accuracy is good! Fine-tuning with more epochs may improve results.", level='info')
-    else:
-        log_message("Excellent model accuracy achieved!", level='info')
-
-    return {
-        'history1': history1,
-        'history2': history2,
-        'history3': history3,
-        'val_accuracy': best_val_accuracy
-    }
+    if best_val_accuracy < 0.4:
+        log_message("=" * 50)
+        log_message("WARNING: Model accuracy is low!")
+        log_message("Recommendations:")
+        log_message("  1. Add more diverse training images (aim for 100+ per class)")
+        log_message("  2. Ensure images are clear and well-lit")
+        log_message("  3. Remove duplicate or very similar images")
+        log_message("  4. Make sure each class has distinct visual features")
+        log_message("=" * 50)
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description='Train construction material detection model with improved architecture')
-    parser.add_argument('--model-id', required=True, help='Model ID')
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Train a material classification model')
     parser.add_argument('--mongo-uri',
                         required=True,
                         help='MongoDB connection URI')
+    parser.add_argument('--model-id',
+                        required=True,
+                        help='Unique model identifier')
     parser.add_argument('--epochs',
                         type=int,
-                        default=15,
-                        help='Number of epochs for initial training')
+                        default=25,
+                        help='Number of epochs for initial training phase')
     parser.add_argument('--batch-size',
                         type=int,
                         default=16,
-                        help='Batch size')
+                        help='Training batch size')
     parser.add_argument('--learning-rate',
                         type=float,
                         default=0.001,
@@ -670,22 +758,10 @@ def main():
     parser.add_argument('--validation-split',
                         type=float,
                         default=0.2,
-                        help='Validation split')
+                        help='Validation split ratio')
     parser.add_argument('--enable-segmentation',
                         default='false',
-                        help='Enable segmentation mode')
-
+                        help='Enable segmentation model')
+    
     args = parser.parse_args()
-
-    try:
-        result = train_model(args)
-        log_message(f"Training completed with best validation accuracy: {result['val_accuracy']:.4f}")
-    except Exception as e:
-        log_message(f"Training failed: {str(e)}", level='error')
-        import traceback
-        log_message(traceback.format_exc(), level='error')
-        sys.exit(1)
-
-
-if __name__ == '__main__':
-    main()
+    train_model(args)

@@ -91,14 +91,14 @@ export async function predictWithModel(
     const pythonScript = path.join(__dirname, '..', '..', 'MLStudio-main', 'worker', 'predict.py');
     
     if (!fs.existsSync(pythonScript)) {
-      console.log('Python inference script not found, using simulation');
-      resolve(simulatePrediction());
+      console.error('Python inference script not found at:', pythonScript);
+      reject(new Error('AI model inference script not available. Please ensure MLStudio is properly set up.'));
       return;
     }
 
     if (!fs.existsSync(modelInfo.modelPath)) {
-      console.log('Model file not found, using simulation');
-      resolve(simulatePrediction());
+      console.error('Model file not found at:', modelInfo.modelPath);
+      reject(new Error('No trained AI model found. Please train a model in MLStudio first.'));
       return;
     }
 
@@ -126,12 +126,15 @@ export async function predictWithModel(
       if (code === 0) {
         try {
           const result = JSON.parse(stdout);
-          // If the python script returned an error or no predictions, fall back to simulation
-          if (result.error || !Array.isArray(result.predictions) || result.predictions.length === 0) {
-            console.warn('Inference script returned no predictions or error:', result.error || 'no predictions');
-            console.debug('python stdout:', stdout);
-            console.debug('python stderr:', stderr);
-            resolve(simulatePrediction());
+          if (result.error) {
+            console.error('Inference error:', result.error);
+            reject(new Error(`AI model inference failed: ${result.error}`));
+            return;
+          }
+          
+          if (!Array.isArray(result.predictions) || result.predictions.length === 0) {
+            console.error('No predictions returned from model');
+            reject(new Error('AI model returned no predictions. The model may need retraining.'));
             return;
           }
 
@@ -151,24 +154,23 @@ export async function predictWithModel(
           });
         } catch (e) {
           console.error('Error parsing prediction result:', e);
-          resolve(simulatePrediction());
+          reject(new Error('Failed to parse AI model prediction results.'));
         }
       } else {
-        console.error('Python inference failed:', stderr);
-        resolve(simulatePrediction());
+        console.error('Python inference failed with code:', code, 'stderr:', stderr);
+        reject(new Error(`AI model inference failed. Please check the model configuration.`));
       }
     });
 
     pythonProcess.on('error', (err) => {
       console.error('Failed to start Python process:', err);
-      resolve(simulatePrediction());
+      reject(new Error('Could not start AI inference. Please ensure Python and TensorFlow are installed.'));
     });
 
     setTimeout(() => {
       pythonProcess.kill();
-      console.log('Prediction timeout, using simulation');
-      resolve(simulatePrediction());
-    }, 30000);
+      reject(new Error('AI model prediction timed out. Please try again.'));
+    }, 60000); // Increased timeout to 60 seconds for larger models
   });
 }
 

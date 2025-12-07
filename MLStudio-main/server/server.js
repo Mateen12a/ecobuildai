@@ -1126,14 +1126,15 @@ app.get('/api/models/:id/sync-status', async (req, res) => {
 
 app.get('/api/image-scrape/search', async (req, res) => {
   try {
-    const { q, count = 100, materialKey = null, filterExisting = 'false' } = req.query;
+    const { q, count = 100, materialKey = null, filterExisting = 'false', page = '1' } = req.query;
     
     if (!q || q.trim().length === 0) {
       return res.status(400).json({ error: 'Search query is required' });
     }
     
     const requestedCount = Math.min(parseInt(count) || 100, 200);
-    let results = await searchImages(q.trim(), requestedCount, materialKey);
+    const pageNumber = Math.max(1, parseInt(page) || 1);
+    let results = await searchImages(q.trim(), requestedCount, materialKey, pageNumber);
     
     if (filterExisting === 'true' && materialKey) {
       const existingImages = await MaterialImage.find({ material_key: materialKey })
@@ -1168,6 +1169,7 @@ app.get('/api/image-scrape/search', async (req, res) => {
       materialKey,
       count: results.length,
       filtered: filterExisting === 'true',
+      page: pageNumber,
       results
     });
   } catch (error) {

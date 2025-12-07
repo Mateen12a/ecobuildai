@@ -281,56 +281,40 @@ router.post('/predict', optionalAuthMiddleware, upload.single('image'), async (r
       }
     }
     
-    let predictionResult;
-    let isSimulation = true;
-    
-    if (activeModel) {
-      try {
-        const imagePath = path.join(UPLOADS_DIR, req.file.filename);
-        predictionResult = await predictWithModel(imagePath, {
-          modelPath: activeModel.modelPath,
-          labelsPath: activeModel.labelsPath || '',
-          classes: activeModel.classes || [],
-          classIndices: activeModel.classIndices || {},
-          inputShape: activeModel.inputShape || [224, 224, 3]
-        });
-        isSimulation = predictionResult?.isSimulation || false;
-      } catch (err) {
-        console.error('Model prediction error, falling back to simulation:', err);
-        predictionResult = null;
-      }
-    }
-    
-    let predictions;
-    let topPrediction;
-    let predictedKey: string;
-    
-    if (predictionResult && !predictionResult.isSimulation) {
-      predictions = predictionResult.predictions;
-      topPrediction = predictionResult.topPrediction;
-      predictedKey = topPrediction.class;
-    } else {
-      const randomIndex = Math.floor(Math.random() * MATERIAL_KEYS.length);
-      predictedKey = MATERIAL_KEYS[randomIndex];
-
-      predictions = MATERIAL_KEYS.map((key) => {
-        let confidence = Math.random() * 0.3 + 0.05;
-        if (key === predictedKey) {
-          confidence = Math.random() * 0.25 + 0.70;
-        }
-        return {
-          class: key,
-          className: ICE_MATERIALS[key].name,
-          confidence
-        };
+    // Require an active AI model - no simulation fallback
+    if (!activeModel) {
+      res.status(503).json({ 
+        error: 'No AI model available',
+        message: 'No trained AI model is currently active. Please train and activate a model in MLStudio first.',
+        modelRequired: true
       });
-
-      const totalConfidence = predictions.reduce((sum, p) => sum + p.confidence, 0);
-      predictions.forEach(p => p.confidence = p.confidence / totalConfidence);
-      predictions.sort((a, b) => b.confidence - a.confidence);
-
-      topPrediction = predictions[0];
+      return;
     }
+    
+    let predictionResult;
+    const imagePath = path.join(UPLOADS_DIR, req.file.filename);
+    
+    try {
+      predictionResult = await predictWithModel(imagePath, {
+        modelPath: activeModel.modelPath,
+        labelsPath: activeModel.labelsPath || '',
+        classes: activeModel.classes || [],
+        classIndices: activeModel.classIndices || {},
+        inputShape: activeModel.inputShape || [224, 224, 3]
+      });
+    } catch (err: any) {
+      console.error('Model prediction error:', err);
+      res.status(503).json({ 
+        error: 'AI prediction failed',
+        message: err.message || 'The AI model failed to make a prediction. Please try again or retrain the model.',
+        modelRequired: true
+      });
+      return;
+    }
+    
+    const predictions = predictionResult.predictions;
+    const topPrediction = predictionResult.topPrediction;
+    const predictedKey = topPrediction.class;
     
     const material = ICE_MATERIALS[predictedKey] || ICE_MATERIALS['concrete'];
 
@@ -429,7 +413,7 @@ router.post('/predict', optionalAuthMiddleware, upload.single('image'), async (r
         confidence: topPrediction.confidence,
         modelName: scanData.modelName,
         boundingBox,
-        isSimulation: isSimulation
+        isSimulation: false
       },
       isGuest,
       scansRemaining: isGuest ? 3 - (await Scan.countDocuments({ guestToken })) : null
