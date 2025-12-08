@@ -567,7 +567,7 @@ app.post('/api/training/start', async (req, res) => {
   if (currentTraining) {
     return res.status(400).json({ error: 'Training already in progress' });
   }
-  
+
   try {
     const { 
       epochs = 10, 
@@ -576,31 +576,31 @@ app.post('/api/training/start', async (req, res) => {
       validationSplit = 0.2,
       enableSegmentation = false 
     } = req.body;
-    
+
     const stats = await MaterialImage.aggregate([
       { $group: { _id: '$material_key', count: { $sum: 1 } } }
     ]);
-    
+
     if (stats.length < 2) {
       return res.status(400).json({ error: 'At least 2 classes with images are required' });
     }
-    
+
     const totalSamples = stats.reduce((sum, s) => sum + s.count, 0);
     if (totalSamples < 10) {
       return res.status(400).json({ error: 'At least 10 samples are required for training' });
     }
-    
+
     const runId = uuidv4();
     const modelId = `model-${Date.now()}`;
     const classes = stats.map(s => s._id);
-    
+
     const classLabels = new Map();
     for (const key of classes) {
       const mat = await getMaterialByKey(key);
       if (mat) classLabels.set(key, mat.name);
     }
-    
-    const trainedModel = await TrainedModel.create({
+
+    await TrainedModel.create({
       modelId,
       name: `Model ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`,
       status: 'training',
@@ -609,11 +609,19 @@ app.post('/api/training/start', async (req, res) => {
       config: { epochs, batchSize, learningRate, validationSplit, enableSegmentation },
       samplesUsed: totalSamples
     });
-    
+
     const totalEpochs = epochs + Math.max(10, Math.floor(epochs / 2));
+
     currentTraining = { runId, modelId, process: null };
-    broadcast({ type: 'training_started', runId, modelId, total_epochs: totalEpochs });
-    
+
+    // 🔥 Notify frontend training has started
+    broadcast({ 
+      type: 'training_started', 
+      runId, 
+      modelId, 
+      total_epochs: totalEpochs 
+    });
+
     const pythonScript = path.join(__dirname, '..', 'worker', 'train.py');
 
     const args = [
@@ -664,12 +672,18 @@ app.post('/api/training/start', async (req, res) => {
           await TrainedModel.updateMany({ modelId: { $ne: modelId } }, { isActive: false });
         }
 
-        broadcast({ type: 'training_completed', runId, modelId, exitCode: code, status });
+        broadcast({ 
+          type: 'training_completed', 
+          runId, 
+          modelId, 
+          exitCode: code, 
+          status 
+        });
+
         currentTraining = null;
       });
     }
 
-    // Use ONLY the resolved python (venv), no fallbacks to system python
     console.log(`Training: Using Python executable: ${pythonExecutable}`);
     broadcast({ type: 'training_log', runId, message: `Starting training with Python: ${pythonExecutable}` });
 
@@ -682,7 +696,7 @@ app.post('/api/training/start', async (req, res) => {
       broadcast({ type: 'training_log', runId, message: `Failed to start training: ${err.message}`, level: 'error' });
       currentTraining = null;
     }
-    
+
     res.json({ runId, modelId, status: 'started' });
   } catch (error) {
     console.error('Error starting training:', error);
@@ -690,56 +704,109 @@ app.post('/api/training/start', async (req, res) => {
   }
 });
 
+// 🔥 CLEAN + FIXED EVENT HANDLER — matches frontend naming perfectly
 async function handleTrainingEvent(modelId, event) {
-  const runId = currentTraining && currentTraining.modelId === modelId ? currentTraining.runId : undefined;
+  const runId =
+    currentTraining && currentTraining.modelId === modelId
+      ? currentTraining.runId
+      : undefined;
+
   switch (event.type) {
-    case 'epoch_end':
+
+    case "training_started":
+      broadcast({ type: "training_started", runId, modelId, total_epochs: event.total_epochs });
+      break;
+
+    case "epoch_end":
       await TrainedModel.findOneAndUpdate(
         { modelId },
-        { 
-          $push: { 
-            'trainingHistory.loss': event.loss,
-            'trainingHistory.accuracy': event.accuracy,
-            'trainingHistory.valLoss': event.val_loss,
-            'trainingHistory.valAccuracy': event.val_accuracy
+        {
+          $push: {
+            "trainingHistory.loss": event.loss,
+            "trainingHistory.accuracy": event.accuracy,
+            "trainingHistory.valLoss": event.val_loss,
+            "trainingHistory.valAccuracy": event.val_accuracy
           },
           $set: {
-            'metrics.loss': event.loss,
-            'metrics.accuracy': event.accuracy,
-            'metrics.valLoss': event.val_loss,
-            'metrics.valAccuracy': event.val_accuracy
+            "metrics.loss": event.loss,
+            "metrics.accuracy": event.accuracy,
+            "metrics.valLoss": event.val_loss,
+            "metrics.valAccuracy": event.val_accuracy,
+            "metrics.currentEpoch": event.epoch,
+            "metrics.totalEpochs": event.total_epochs
           }
         }
       );
-      broadcast({ type: 'training_progress', runId, modelId, ...event });
-      break;
-    case 'batch_end':
-      broadcast({ type: 'training_batch', runId, modelId, ...event });
-      break;
-    case 'log':
-      await TrainedModel.findOneAndUpdate(
-        { modelId },
-        { $push: { logs: { message: event.message, level: event.level || 'info' } } }
-      );
-      broadcast({ type: 'training_log', runId, modelId, message: event.message, level: event.level });
-      break;
-    case 'confusion_matrix':
-      await TrainedModel.findOneAndUpdate(
-        { modelId },
-        { $set: { 'metrics.confusionMatrix': event.matrix } }
-      );
-      broadcast({ type: 'confusion_matrix', runId, modelId, matrix: event.matrix });
-      break;
-    case 'phase_update':
+
       broadcast({ 
-        type: 'training_phase', 
+        type: "training_progress", 
         runId, 
         modelId, 
+        ...event 
+      });
+      break;
+
+    case "batch_end":
+      broadcast({
+        type: "training_batch",
+        runId,
+        modelId,
+        ...event
+      });
+      break;
+
+    case "phase_update":
+      broadcast({
+        type: "training_phase",
+        runId,
+        modelId,
         phaseName: event.phase_name,
         phaseNumber: event.phase_number,
         totalPhases: event.total_phases,
         phaseEpoch: event.phase_epoch
       });
+      break;
+
+    case "log":
+      await TrainedModel.findOneAndUpdate(
+        { modelId },
+        { $push: { logs: { message: event.message, level: event.level || "info" } } }
+      );
+
+      broadcast({
+        type: "training_log",
+        runId,
+        modelId,
+        message: event.message,
+        level: event.level
+      });
+      break;
+
+    case "confusion_matrix":
+      await TrainedModel.findOneAndUpdate(
+        { modelId },
+        { $set: { "metrics.confusionMatrix": event.matrix } }
+      );
+
+      broadcast({
+        type: "confusion_matrix",
+        runId,
+        modelId,
+        matrix: event.matrix
+      });
+      break;
+
+    case "training_completed":
+      broadcast({
+        type: "training_completed",
+        runId,
+        modelId,
+        status: event.status
+      });
+      break;
+
+    default:
+      console.warn("Unknown training event:", event);
       break;
   }
 }

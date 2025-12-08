@@ -2,8 +2,8 @@ import https from 'https';
 import http from 'http';
 
 const GOOGLE_CX = process.env.GOOGLE_SEARCH_CX;
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
-const PIXABAY_API_KEY = process.env.PIXABAY_API_KEY;
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || "AIzaSyCDTw2JfEagvn26Lfsf6rjQoTt8rqC-heo";
+const PIXABAY_API_KEY = process.env.PIXABAY_API_KEY || "53590414-e5633b41d6f5db2def7f53e3d";
 
 const MATERIAL_SEARCH_TERMS = {
   aggregate: ['crushed stone aggregate', 'gravel construction material', 'aggregate pile', 'road base aggregate', 'stone chips', 'crushed gravel texture', 'rock aggregate close up', 'construction aggregate'],
@@ -73,92 +73,92 @@ function shuffleArray(array) {
 function buildSearchQueries(materialKey, baseName, page = 1) {
   const queries = [];
   const specificTerms = MATERIAL_SEARCH_TERMS[materialKey] || [];
-  
+
   const allTerms = [...specificTerms];
-  
+
   const suffixes = ['building material', 'construction', 'texture', 'closeup', 'surface', 'pattern', 'sample', 'photo', 'high quality'];
   const shuffledSuffixes = shuffleArray(suffixes);
-  
+
   if (allTerms.length > 0) {
     const shuffledTerms = shuffleArray(allTerms);
     const startIdx = ((page - 1) * 3) % shuffledTerms.length;
-    
+
     for (let i = 0; i < Math.min(5, shuffledTerms.length); i++) {
       const termIdx = (startIdx + i) % shuffledTerms.length;
       const suffixIdx = i % shuffledSuffixes.length;
       queries.push(`${shuffledTerms[termIdx]} ${shuffledSuffixes[suffixIdx]}`);
     }
   }
-  
+
   const cleanName = baseName.replace(/\([^)]*\)/g, '').trim();
   queries.push(`${cleanName} construction material`);
   queries.push(`${cleanName} building supply`);
-  
+
   if (page > 1) {
     const additionalTerms = ['real', 'authentic', 'raw', 'natural', 'professional'];
     const randomTerm = additionalTerms[Math.floor(Math.random() * additionalTerms.length)];
     queries.push(`${cleanName} ${randomTerm} material`);
   }
-  
+
   return [...new Set(shuffleArray(queries))];
 }
 
 export async function searchImages(query, count = 100, materialKey = null, page = 1) {
   let searchQueries = [];
-  
+
   if (materialKey && MATERIAL_SEARCH_TERMS[materialKey]) {
     searchQueries = buildSearchQueries(materialKey, query, page);
   } else {
     const suffixes = shuffleArray(['construction material photo', 'building material', 'texture closeup', 'surface pattern', 'sample image']);
     searchQueries = suffixes.slice(0, 3).map(suffix => `${query} ${suffix}`);
   }
-  
+
   console.log(`Image search for: ${query} (key: ${materialKey}), page: ${page}, requesting ${count} images`);
   console.log(`Using queries: ${searchQueries.join(', ')}`);
-  
+
   if (GOOGLE_API_KEY && GOOGLE_CX) {
     return await multiQueryGoogleSearch(searchQueries, count, page);
   }
-  
+
   const allResults = [];
-  
+
   for (const searchQuery of searchQueries) {
     if (allResults.length >= count) break;
-    
+
     const remaining = Math.min(count - allResults.length, 50);
-    
+
     let results = await pixabayImageSearch(searchQuery, remaining, page);
-    
+
     if (results.length < remaining / 2) {
       const unsplashResults = await unsplashImageSearch(searchQuery, remaining - results.length, page);
       results = [...results, ...unsplashResults];
     }
-    
+
     if (results.length === 0) {
       results = await duckDuckGoImageSearch(searchQuery, remaining);
     }
-    
+
     const existingUrls = new Set(allResults.map(r => r.fullImageUrl));
     const newResults = results.filter(r => !existingUrls.has(r.fullImageUrl));
     allResults.push(...newResults);
   }
-  
+
   return shuffleArray(allResults).slice(0, count);
 }
 
 async function multiQueryGoogleSearch(queries, count, page = 1) {
   const allResults = [];
   const perQuery = Math.ceil(count / queries.length);
-  
+
   for (const query of queries) {
     if (allResults.length >= count) break;
-    
+
     const results = await googleImageSearch(query, perQuery, page);
     const existingUrls = new Set(allResults.map(r => r.fullImageUrl));
     const newResults = results.filter(r => !existingUrls.has(r.fullImageUrl));
     allResults.push(...newResults);
   }
-  
+
   return shuffleArray(allResults).slice(0, count);
 }
 
@@ -167,13 +167,13 @@ async function googleImageSearch(query, count, page = 1) {
   const perPage = 10;
   const startOffset = (page - 1) * count;
   const pages = Math.ceil(count / perPage);
-  
+
   for (let p = 0; p < pages && results.length < count; p++) {
     const start = startOffset + p * perPage + 1;
     if (start > 100) break;
-    
+
     const url = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY}&cx=${GOOGLE_CX}&q=${encodeURIComponent(query)}&searchType=image&num=${perPage}&start=${start}&safe=active&imgSize=medium`;
-    
+
     try {
       const response = await fetchJson(url);
       if (response.items) {
@@ -194,28 +194,28 @@ async function googleImageSearch(query, count, page = 1) {
       console.error('Google search error:', error.message);
     }
   }
-  
+
   return results;
 }
 
 async function duckDuckGoImageSearch(query, count) {
   const results = [];
-  
+
   try {
     const tokenUrl = `https://duckduckgo.com/?q=${encodeURIComponent(query)}&iax=images&ia=images`;
     const tokenResponse = await fetchText(tokenUrl);
-    
+
     const vqdMatch = tokenResponse.match(/vqd=['"]([^'"]+)['"]/);
     if (!vqdMatch) {
       console.log('Could not get DuckDuckGo token');
       return results;
     }
-    
+
     const vqd = vqdMatch[1];
     const searchUrl = `https://duckduckgo.com/i.js?l=us-en&o=json&q=${encodeURIComponent(query)}&vqd=${vqd}&f=,,,,,&p=1`;
-    
+
     const response = await fetchJson(searchUrl);
-    
+
     if (response.results) {
       for (const item of response.results.slice(0, count)) {
         results.push({
@@ -232,24 +232,24 @@ async function duckDuckGoImageSearch(query, count) {
   } catch (error) {
     console.error('DuckDuckGo search error:', error.message);
   }
-  
+
   return results;
 }
 
 async function pixabayImageSearch(query, count, page = 1) {
   const results = [];
-  
+
   const apiKey = PIXABAY_API_KEY;
   if (!apiKey) {
     console.log('Pixabay API key not configured');
     return results;
   }
-  
+
   try {
     const perPage = Math.min(count, 100);
     const pixabayUrl = `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(query)}&image_type=photo&per_page=${perPage}&page=${page}&safesearch=true&order=${page % 2 === 0 ? 'latest' : 'popular'}`;
     const response = await fetchJson(pixabayUrl);
-    
+
     if (response.hits) {
       for (const item of response.hits.slice(0, count)) {
         results.push({
@@ -266,18 +266,18 @@ async function pixabayImageSearch(query, count, page = 1) {
   } catch (error) {
     console.error('Pixabay search error:', error.message);
   }
-  
+
   return results;
 }
 
 async function unsplashImageSearch(query, count, page = 1) {
   const results = [];
-  
+
   try {
     const orderBy = ['relevant', 'latest'][page % 2];
     const unsplashUrl = `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query)}&per_page=${count}&page=${page}&order_by=${orderBy}`;
     const response = await fetchJson(unsplashUrl);
-    
+
     if (response.results) {
       for (const item of response.results.slice(0, count)) {
         results.push({
@@ -294,11 +294,11 @@ async function unsplashImageSearch(query, count, page = 1) {
   } catch (error) {
     console.error('Unsplash search error:', error.message);
   }
-  
+
   return results;
 }
 
-function fetchJson(url) {
+function fetchJson(url, retries = 2) {
   return new Promise((resolve, reject) => {
     const protocol = url.startsWith('https') ? https : http;
     const options = {
@@ -307,20 +307,70 @@ function fetchJson(url) {
         'Accept': 'application/json, text/plain, */*',
         'Accept-Language': 'en-US,en;q=0.9'
       },
-      timeout: 10000
+      timeout: 15000
     };
-    
-    protocol.get(url, options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch (e) {
-          reject(new Error('Invalid JSON response'));
+
+    const makeRequest = (attemptNum) => {
+      protocol.get(url, options, (res) => {
+        const contentType = res.headers['content-type'] || '';
+        
+        if (res.statusCode === 429) {
+          console.log('Rate limited, retrying after delay...');
+          if (attemptNum < retries) {
+            setTimeout(() => makeRequest(attemptNum + 1), 2000 * attemptNum);
+            return;
+          }
+          reject(new Error('Rate limited - too many requests'));
+          return;
+        }
+
+        if (res.statusCode !== 200) {
+          console.log(`HTTP ${res.statusCode} for ${url.substring(0, 50)}...`);
+          reject(new Error(`HTTP error: ${res.statusCode}`));
+          return;
+        }
+
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          if (contentType.includes('text/html')) {
+            console.log('Received HTML instead of JSON, API may have changed or returned error page');
+            reject(new Error('Received HTML response instead of JSON'));
+            return;
+          }
+
+          try {
+            const parsed = JSON.parse(data);
+            resolve(parsed);
+          } catch (e) {
+            const preview = data.substring(0, 200);
+            console.error(`Invalid JSON response (first 200 chars): ${preview}`);
+            if (attemptNum < retries) {
+              console.log(`Retrying... (attempt ${attemptNum + 1}/${retries})`);
+              setTimeout(() => makeRequest(attemptNum + 1), 1000 * attemptNum);
+            } else {
+              reject(new Error(`Invalid JSON response: ${e.message}`));
+            }
+          }
+        });
+      }).on('error', (err) => {
+        if (attemptNum < retries) {
+          console.log(`Network error, retrying... (attempt ${attemptNum + 1}/${retries})`);
+          setTimeout(() => makeRequest(attemptNum + 1), 1000 * attemptNum);
+        } else {
+          reject(err);
+        }
+      }).on('timeout', () => {
+        if (attemptNum < retries) {
+          console.log(`Timeout, retrying... (attempt ${attemptNum + 1}/${retries})`);
+          setTimeout(() => makeRequest(attemptNum + 1), 1000 * attemptNum);
+        } else {
+          reject(new Error('Request timeout'));
         }
       });
-    }).on('error', reject).on('timeout', () => reject(new Error('Request timeout')));
+    };
+
+    makeRequest(1);
   });
 }
 
@@ -334,7 +384,7 @@ function fetchText(url) {
       },
       timeout: 10000
     };
-    
+
     protocol.get(url, options, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
@@ -353,24 +403,24 @@ export async function downloadImage(url) {
       },
       timeout: 15000
     };
-    
+
     const request = protocol.get(url, options, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         downloadImage(res.headers.location).then(resolve).catch(reject);
         return;
       }
-      
+
       if (res.statusCode !== 200) {
         reject(new Error(`Failed to download: ${res.statusCode}`));
         return;
       }
-      
+
       const chunks = [];
       res.on('data', chunk => chunks.push(chunk));
       res.on('end', () => resolve(Buffer.concat(chunks)));
       res.on('error', reject);
     });
-    
+
     request.on('error', reject);
     request.on('timeout', () => {
       request.destroy();

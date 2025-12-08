@@ -56,6 +56,51 @@ function Training() {
       try {
         const data = JSON.parse(ev.data);
 
+        // Update live training metrics for the progress bar
+if (data.type === 'training_progress') {
+  setTrainingStatus(prev => ({
+    ...prev,
+    status: 'running'
+  }));
+
+  setTrainingMetrics(prev => ({
+    ...prev,
+    currentEpoch: data.epoch,
+    totalEpochs: data.total_epochs || prev.totalEpochs,
+    loss: [...(prev.loss || []), data.loss],
+    accuracy: [...(prev.accuracy || []), data.accuracy],
+    valLoss: [...(prev.valLoss || []), data.val_loss],
+    valAccuracy: [...(prev.valAccuracy || []), data.val_accuracy]
+  }));
+}
+
+if (data.type === 'training_batch') {
+  setTrainingMetrics(prev => ({
+    ...prev,
+    currentBatch: data.batch,
+    stepsPerEpoch: data.steps_per_epoch,
+    batchProgressPercent: Math.round(data.batch_progress * 100)
+  }));
+}
+
+if (data.type === 'training_phase') {
+  setTrainingMetrics(prev => ({
+    ...prev,
+    phaseName: data.phaseName,
+    phaseNumber: data.phaseNumber,
+    totalPhases: data.totalPhases,
+    phaseEpoch: data.phaseEpoch
+  }));
+}
+
+if (data.type === 'training_completed') {
+  setTrainingStatus(prev => ({
+    ...prev,
+    status: 'completed'
+  }));
+}
+
+
         // When a new run starts — make sure it appears in the history UI immediately
         if (data.type === 'training_started') {
           setTrainingHistory(prev => {
