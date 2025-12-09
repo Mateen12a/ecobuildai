@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sprout, Building2, BarChart3, Menu, Scan, Leaf, LogOut, Settings, User, CreditCard, LayoutDashboard, FolderOpen, FileText, Search, Box, Layers, Cuboid, Upload, Loader2, AlertTriangle, Clock, Cpu, Info, Eye, X, Camera, Image as ImageIcon, RotateCcw, CheckCircle2, TrendingDown } from "lucide-react";
+import { Building2, BarChart3, Menu, Scan, Leaf, LogOut, Settings, User, CreditCard, LayoutDashboard, FolderOpen, FileText, Search, Box, Layers, Cuboid, Upload, Loader2, AlertTriangle, Clock, Cpu, Info, Eye, X, Camera, Image as ImageIcon, RotateCcw, CheckCircle2, TrendingDown, Activity, Target, Zap } from "lucide-react";
+import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Link, useLocation } from "wouter";
@@ -173,9 +174,16 @@ export default function Home() {
   };
 
   const dashboardStats = [
-    { label: "Total Scans", value: stats.totalScans.toString(), icon: Scan, color: "text-blue-500", bg: "bg-blue-500/10", link: "/history" },
-    { label: "Carbon Saved", value: `${stats.carbonSaved.toFixed(1)}kg`, icon: Leaf, color: "text-green-500", bg: "bg-green-500/10", link: null },
-    { label: "Active Projects", value: stats.activeProjects.toString(), icon: Building2, color: "text-purple-500", bg: "bg-purple-500/10", link: "/projects" },
+    { label: "Total Scans", value: stats.totalScans.toString(), icon: Scan, color: "text-blue-500", bg: "bg-blue-500/10", link: "/history", description: "Materials analyzed" },
+    { label: "Carbon Saved", value: `${stats.carbonSaved.toFixed(1)}kg`, icon: Leaf, color: "text-green-500", bg: "bg-green-500/10", link: null, description: "CO2 reduction" },
+    { label: "Active Projects", value: stats.activeProjects.toString(), icon: Building2, color: "text-purple-500", bg: "bg-purple-500/10", link: "/projects", description: "In progress" },
+  ];
+
+  const quickActions = [
+    { label: "New Scan", icon: Scan, href: null, action: () => fileInputRef.current?.click(), variant: "default" as const },
+    { label: "Materials Library", icon: Search, href: "/materials", action: null, variant: "outline" as const },
+    { label: "View Reports", icon: FileText, href: "/reports", action: null, variant: "outline" as const },
+    { label: "Manage Projects", icon: FolderOpen, href: "/projects", action: null, variant: "outline" as const },
   ];
 
   const renderWireframe = () => {
@@ -346,14 +354,7 @@ export default function Home() {
     <div className="min-h-screen bg-background text-foreground font-sans">
       <nav className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/">
-            <div className="flex items-center gap-2 cursor-pointer group">
-              <div className="bg-primary text-white p-1.5 rounded-lg group-hover:scale-110 transition-transform">
-                <Sprout className="w-6 h-6" />
-              </div>
-              <span className="font-display font-bold text-xl tracking-tight">EcoBuild<span className="text-primary">.AI</span></span>
-            </div>
-          </Link>
+          <Logo linkTo="/dashboard" />
           
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
             <Link href="/dashboard" className="text-foreground font-semibold hover:text-primary transition-colors flex items-center gap-2">
@@ -413,11 +414,8 @@ export default function Home() {
               </SheetTrigger>
               <SheetContent side="right" className="w-[300px] sm:w-[400px]">
                 <SheetHeader>
-                  <SheetTitle className="flex items-center gap-2">
-                    <div className="bg-primary text-white p-1.5 rounded-lg">
-                      <Sprout className="w-5 h-5" />
-                    </div>
-                    <span className="font-display font-bold text-xl">EcoBuild.AI</span>
+                  <SheetTitle>
+                    <Logo size="md" linkTo={undefined} />
                   </SheetTitle>
                 </SheetHeader>
                 <div className="flex flex-col gap-4 mt-8">
@@ -440,9 +438,28 @@ export default function Home() {
       </nav>
 
       <main className="container mx-auto px-4 py-8 pb-20">
-        <div className="mb-8">
-          <h1 className="text-3xl font-display font-bold mb-2">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back, {user?.firstName}. Here's your sustainability overview.</p>
+        <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-display font-bold mb-2">Welcome back, {user?.firstName}</h1>
+            <p className="text-muted-foreground">Here's your sustainability overview and quick actions.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {quickActions.map((action, i) => (
+              action.href ? (
+                <Link key={i} href={action.href}>
+                  <Button variant={action.variant} size="sm" className="gap-2">
+                    <action.icon className="w-4 h-4" />
+                    {action.label}
+                  </Button>
+                </Link>
+              ) : (
+                <Button key={i} variant={action.variant} size="sm" className="gap-2" onClick={action.action || undefined}>
+                  <action.icon className="w-4 h-4" />
+                  {action.label}
+                </Button>
+              )
+            ))}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -455,6 +472,7 @@ export default function Home() {
                       <div>
                         <p className="text-sm font-medium text-muted-foreground mb-1">{stat.label}</p>
                         <h3 className="text-3xl font-bold">{stat.value}</h3>
+                        <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
                       </div>
                       <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
                         <stat.icon className="w-6 h-6" />
@@ -468,6 +486,7 @@ export default function Home() {
                     <div>
                       <p className="text-sm font-medium text-muted-foreground mb-1">{stat.label}</p>
                       <h3 className="text-3xl font-bold">{stat.value}</h3>
+                      <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
                     </div>
                     <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
                       <stat.icon className="w-6 h-6" />
@@ -477,6 +496,53 @@ export default function Home() {
               )}
             </motion.div>
           ))}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <Card className="border-none shadow-sm">
+            <CardContent className="p-4 flex items-center gap-4">
+              <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
+                <Target className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Sustainability Score</p>
+                <p className="text-lg font-bold">Good</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-none shadow-sm">
+            <CardContent className="p-4 flex items-center gap-4">
+              <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-500">
+                <Activity className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">This Week</p>
+                <p className="text-lg font-bold">{Math.min(stats.totalScans, 5)} scans</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-none shadow-sm">
+            <CardContent className="p-4 flex items-center gap-4">
+              <div className="p-2 rounded-lg bg-rose-500/10 text-rose-500">
+                <Zap className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Model Status</p>
+                <p className="text-lg font-bold">{modelStatus?.available ? 'Active' : 'Simulation'}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-none shadow-sm">
+            <CardContent className="p-4 flex items-center gap-4">
+              <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-500">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Last Activity</p>
+                <p className="text-lg font-bold">Today</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-8">

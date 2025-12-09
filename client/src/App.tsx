@@ -46,10 +46,24 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   return <Component />;
 }
 
+function LandingGateway() {
+  const { isAuthenticated, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+  
+  return isAuthenticated ? <Redirect to="/dashboard" /> : <Landing />;
+}
+
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Landing} />
+      <Route path="/" component={LandingGateway} />
       <Route path="/dashboard">
         <ProtectedRoute component={Home} />
       </Route>

@@ -2,13 +2,14 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { ArrowLeft, Bell, Lock, Eye, Globe, Shield, Smartphone, Mail, Loader2, Key } from "lucide-react";
+import { ArrowLeft, Bell, Lock, Eye, Globe, Shield, Smartphone, Mail, Loader2, Key, Info, ExternalLink, Heart } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth-context";
+import { Logo, LogoText } from "@/components/logo";
 import {
   Dialog,
   DialogContent,
@@ -194,7 +195,7 @@ export default function Settings() {
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back to Profile
               </Button>
             </Link>
-            <h1 className="text-3xl font-display font-bold">App Settings</h1>
+            <h1 className="text-3xl font-display font-bold">Settings</h1>
             <p className="text-muted-foreground">Customize your application preferences.</p>
           </div>
         </div>
@@ -431,6 +432,29 @@ export default function Settings() {
                     </Button>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="md:col-span-2">
+            <Card className="border-none shadow-md">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-xl"><Info className="w-5 h-5 text-primary" /> About</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center gap-4">
+                  <Logo size="lg" linkTo={undefined} />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Version 1.0.0</p>
+                    <p className="text-sm text-muted-foreground">AI-powered material scanner for sustainable construction</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <Link href="/privacy"><Button variant="link" className="p-0 h-auto gap-1" data-testid="link-privacy"><ExternalLink className="w-3 h-3" /> Privacy Policy</Button></Link>
+                  <Link href="/terms"><Button variant="link" className="p-0 h-auto gap-1" data-testid="link-terms"><ExternalLink className="w-3 h-3" /> Terms of Service</Button></Link>
+                  <Link href="/contact"><Button variant="link" className="p-0 h-auto gap-1" data-testid="link-contact"><ExternalLink className="w-3 h-3" /> Contact Us</Button></Link>
+                </div>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">Made with <Heart className="w-3 h-3 text-red-500" /> for a sustainable future</p>
               </CardContent>
             </Card>
           </motion.div>

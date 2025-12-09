@@ -5,7 +5,8 @@ import { AlternativesGrid } from "@/components/alternatives";
 import heroImage from "@assets/generated_images/hero_image_for_sustainable_construction_app.png";
 import { motion } from "framer-motion";
 import type { ScanResult } from "@/lib/api";
-import { Sprout, Building2, BarChart3, Menu, Scan, Leaf, LogIn, ArrowRight, Quote, Star, Users, LayoutDashboard, User, Settings, LogOut } from "lucide-react";
+import { Building2, BarChart3, Menu, Scan, Leaf, LogIn, ArrowRight, Quote, Star, Users, LayoutDashboard, User, Settings, LogOut } from "lucide-react";
+import { Logo, LogoText } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link, useLocation } from "wouter";
@@ -59,7 +60,7 @@ export default function Landing() {
     {
         name: "Sarah Chen",
         role: "Lead Architect, BuildGreen",
-        text: "EcoBuild.AI has completely transformed our material selection process. We've reduced our projects' embodied carbon by 30% on average.",
+        text: "carbonioo.ai has completely transformed our material selection process. We've reduced our projects' embodied carbon by 30% on average.",
         avatar: "SC"
     },
     {
@@ -81,14 +82,7 @@ export default function Landing() {
       {/* Navigation */}
       <nav className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/">
-            <div className="flex items-center gap-2 cursor-pointer group">
-              <div className="bg-primary text-white p-1.5 rounded-lg group-hover:scale-110 transition-transform">
-                <Sprout className="w-6 h-6" />
-              </div>
-              <span className="font-display font-bold text-xl tracking-tight">EcoBuild<span className="text-primary">.AI</span></span>
-            </div>
-          </Link>
+          <Logo linkTo="/" />
           
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
             <Link href="/about" className="hover:text-primary transition-colors">About</Link>
@@ -269,7 +263,7 @@ export default function Landing() {
                 <section id="features" className="bg-secondary/20 py-24">
                     <div className="container mx-auto px-4">
                         <div className="text-center mb-16">
-                            <h2 className="text-3xl font-display font-bold mb-4">Why Choose EcoBuild.AI?</h2>
+                            <h2 className="text-3xl font-display font-bold mb-4">Why Choose carbonioo.ai?</h2>
                             <p className="text-muted-foreground max-w-2xl mx-auto">Comprehensive tools for the modern sustainable architect.</p>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -343,12 +337,7 @@ export default function Landing() {
         <div className="container mx-auto px-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
                 <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                        <div className="bg-primary text-white p-1.5 rounded-lg">
-                            <Sprout className="w-5 h-5" />
-                        </div>
-                        <span className="font-display font-bold text-xl tracking-tight">EcoBuild<span className="text-primary">.AI</span></span>
-                    </div>
+                    <Logo showIcon={true} size="md" linkTo={undefined} />
                     <p className="text-slate-400 text-sm leading-relaxed">
                         Empowering architects to build a sustainable future through intelligent material analysis.
                     </p>
@@ -384,7 +373,7 @@ export default function Landing() {
                 </div>
             </div>
             <div className="pt-8 border-t border-white/10 text-center text-slate-500 text-sm">
-                &copy; 2025 EcoBuild AI Inc. All rights reserved.
+                &copy; 2025 carbonioo.ai. All rights reserved.
             </div>
         </div>
       </footer>
