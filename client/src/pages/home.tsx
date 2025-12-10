@@ -354,10 +354,10 @@ export default function Home() {
     <div className="min-h-screen bg-background text-foreground font-sans">
       <nav className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Logo linkTo="/dashboard" />
+          <Logo linkTo="/" />
           
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
-            <Link href="/dashboard" className="text-foreground font-semibold hover:text-primary transition-colors flex items-center gap-2">
+            <Link href="/" className="text-foreground font-semibold hover:text-primary transition-colors flex items-center gap-2">
               <LayoutDashboard className="w-4 h-4" /> Dashboard
             </Link>
             <Link href="/materials" className="hover:text-primary transition-colors flex items-center gap-2">
@@ -419,7 +419,7 @@ export default function Home() {
                   </SheetTitle>
                 </SheetHeader>
                 <div className="flex flex-col gap-4 mt-8">
-                  <Link href="/dashboard"><Button variant="ghost" className="w-full justify-start text-lg font-medium"><LayoutDashboard className="mr-3 w-5 h-5" /> Dashboard</Button></Link>
+                  <Link href="/"><Button variant="ghost" className="w-full justify-start text-lg font-medium"><LayoutDashboard className="mr-3 w-5 h-5" /> Dashboard</Button></Link>
                   <Link href="/materials"><Button variant="ghost" className="w-full justify-start text-lg font-medium"><Search className="mr-3 w-5 h-5" /> Materials Library</Button></Link>
                   <Link href="/projects"><Button variant="ghost" className="w-full justify-start text-lg font-medium"><FolderOpen className="mr-3 w-5 h-5" /> Projects</Button></Link>
                   <Link href="/reports"><Button variant="ghost" className="w-full justify-start text-lg font-medium"><FileText className="mr-3 w-5 h-5" /> Reports</Button></Link>

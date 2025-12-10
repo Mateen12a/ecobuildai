@@ -22,7 +22,7 @@ export function Logo({ showIcon = true, size = "md", linkTo = "/" }: LogoProps) 
         </div>
       )}
       <span className={`font-display font-bold ${sizeClasses[size].text} tracking-tight`}>
-        carbonio<span className="text-primary">o</span><span className="text-muted-foreground">.ai</span>
+        Carb<span className="text-primary">ioo</span><span className="text-muted-foreground">.AI</span>
       </span>
     </div>
   );

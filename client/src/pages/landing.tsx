@@ -93,7 +93,7 @@ export default function Landing() {
           <div className="flex items-center gap-4">
             {isAuthenticated ? (
               <>
-                <Link href="/dashboard">
+                <Link href="/">
                   <Button variant="ghost" className="hidden md:flex gap-2">
                     <LayoutDashboard className="w-4 h-4" /> Dashboard
                   </Button>
@@ -113,7 +113,7 @@ export default function Landing() {
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => setLocation("/dashboard")}>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => setLocation("/")}>
                       <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
                     </DropdownMenuItem>
                     <DropdownMenuItem className="cursor-pointer" onClick={() => setLocation("/profile")}>

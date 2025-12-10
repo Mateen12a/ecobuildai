@@ -57,14 +57,14 @@ function LandingGateway() {
     );
   }
   
-  return isAuthenticated ? <Redirect to="/dashboard" /> : <Landing />;
+  return isAuthenticated ? <Redirect to="/" /> : <Landing />;
 }
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={LandingGateway} />
-      <Route path="/dashboard">
+      <Route path="/home" component={LandingGateway} />
+      <Route path="/">
         <ProtectedRoute component={Home} />
       </Route>
       <Route path="/auth" component={AuthPage} />

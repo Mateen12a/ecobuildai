@@ -127,7 +127,7 @@ export default function ScanHistory() {
       >
         <div className="flex items-center justify-between gap-4 mb-8 flex-wrap">
           <div>
-            <Link href="/dashboard">
+            <Link href="/">
               <Button variant="ghost" className="mb-2 pl-0 hover:pl-2 transition-all text-muted-foreground" data-testid="button-back-dashboard">
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
               </Button>
@@ -135,7 +135,7 @@ export default function ScanHistory() {
             <h1 className="text-3xl font-display font-bold">Scan History</h1>
             <p className="text-muted-foreground">View and manage your material analysis history.</p>
           </div>
-          <Link href="/dashboard">
+          <Link href="/">
             <Button data-testid="button-new-scan">
               <Scan className="w-4 h-4 mr-2" /> New Scan
             </Button>
@@ -186,7 +186,7 @@ export default function ScanHistory() {
                   : 'Start scanning construction materials to build your analysis history.'}
               </p>
               {!searchQuery && (
-                <Link href="/dashboard">
+                <Link href="/">
                   <Button className="mt-2" data-testid="button-start-scanning">Start Scanning</Button>
                 </Link>
               )}

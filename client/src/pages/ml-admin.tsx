@@ -108,7 +108,7 @@ export default function MLAdmin() {
       >
         <div className="flex items-center justify-between gap-4 mb-8 flex-wrap">
           <div>
-            <Link href="/dashboard">
+            <Link href="/">
               <Button variant="ghost" className="mb-2 pl-0 hover:pl-2 transition-all text-muted-foreground" data-testid="button-back-dashboard">
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
               </Button>

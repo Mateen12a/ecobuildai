@@ -23,7 +23,7 @@ export default function AuthPage() {
   });
 
   if (isAuthenticated) {
-    setLocation("/dashboard");
+    setLocation("/");
     return null;
   }
 
@@ -33,7 +33,7 @@ export default function AuthPage() {
     try {
       await login(loginData.email, loginData.password);
       toast({ title: "Welcome back!", description: "You've successfully logged in." });
-      setLocation("/dashboard");
+      setLocation("/");
     } catch (error: any) {
       toast({ 
         title: "Login failed", 
@@ -51,7 +51,7 @@ export default function AuthPage() {
     try {
       await register(registerData);
       toast({ title: "Account created!", description: "Welcome to EcoBuild.AI" });
-      setLocation("/dashboard");
+      setLocation("/");
     } catch (error: any) {
       toast({ 
         title: "Registration failed", 
@@ -74,7 +74,7 @@ export default function AuthPage() {
         avatar: "https://lh3.googleusercontent.com/a/default-user"
       });
       toast({ title: "Welcome!", description: "Signed in with Google" });
-      setLocation("/dashboard");
+      setLocation("/");
     } catch (error: any) {
       toast({ 
         title: "Google login failed", 

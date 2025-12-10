@@ -148,7 +148,7 @@ export default function Reports() {
       <div className="container mx-auto px-4 pt-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <Link href="/dashboard">
+            <Link href="/">
               <Button variant="ghost" className="mb-2 pl-0 hover:pl-2 transition-all text-muted-foreground">
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
               </Button>
